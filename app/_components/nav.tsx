@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 
 const links = [
     { href: "/", label: "Home" },
-    { href: "/WeeklyReplays", label: "Weekly Replays" },
-    { href: "/AndrewsRecaps", label: "Andrew's Recaps" },
-    { href: "/Statistics", label: "Statistics" },
-    { href: "/SlanderGallery", label: "Slander Gallery" },
+    { href: "/weekly-replays", label: "Weekly Replays" },
+    { href: "/andrews-recaps", label: "Andrew's Recaps" },
+    { href: "/statistics", label: "Statistics" },
+    { href: "/slander-gallery", label: "Slander Gallery" },
 ];
 
 export function Nav() {
