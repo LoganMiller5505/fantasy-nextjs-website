@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fantasy Football League",
-  description: "Run It Up The Middle Enjoyers Fantasy Football League",
+  title: "The League Huddle",
+  description: "Run It Up The Middle Enjoyers Fantasy Football League Huddle",
 };
 
 export default function RootLayout({
