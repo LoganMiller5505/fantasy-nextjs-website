@@ -1,6 +1,6 @@
-type VideoProps = { id: string; title: string; };
+type VideoProps = { id: string; title: string; className?: string };
 
-export function Video({ id, title }: VideoProps) {
+export function Video({ id, title, className }: VideoProps) {
     return (
         <iframe
             src={`https://player.vimeo.com/video/${id}?badge=0&autopause=0`}
@@ -9,7 +9,7 @@ export function Video({ id, title }: VideoProps) {
             allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
             referrerPolicy="strict-origin-when-cross-origin"
             allowFullScreen
-            className="aspect-video w-full"
+            className={`aspect-video w-full ${className || ''}`}
         />
     )
 }
