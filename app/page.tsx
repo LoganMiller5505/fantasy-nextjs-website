@@ -1,5 +1,5 @@
 import { sql } from '@/lib/db'
-import { Video } from './_components/video'
+import { Video } from './_components/vimeo_video'
 import { Bio } from './_components/bio'
 import Link from "next/link";
 
@@ -21,7 +21,7 @@ export default async function Page() {
       </section>
 
       <section className="space-y-4">
-        <h2>Meet the GMs</h2>
+        <h2>About the GMs</h2>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <Bio name="Whieldon" alias="Naberhood Creep" logoPath="/logos/Whieldon.svg" description="15-1 lmaooo" yearsPlayed="3" />
           <Bio name="Robert" alias="Come Cee Whats in my Basement" logoPath="/logos/Robert.jpg" description="Black magic bs" yearsPlayed="3" />

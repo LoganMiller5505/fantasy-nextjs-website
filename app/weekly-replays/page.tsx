@@ -1,3 +1,10 @@
+import Dropdown from "../_components/dropdown"
+import { Video } from "../_components/local_video";
+
 export default function WeeklyReplaysPage() {
-    return <h1 className="text-2xl font-bold">Weekly Replays</h1>;
+    return (
+        <div>
+            <Dropdown option={['Week 1', 'Week 2', 'Week 3']} defaultOption="Select Week" />
+        </div>
+    );
 }
