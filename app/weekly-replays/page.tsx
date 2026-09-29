@@ -11,7 +11,7 @@ import { Video } from "../_components/local_video";
 
 
 const items = [
-  { label: "Select a fruit", value: null },
+  { label: "Select a week", value: null },
   { label: "Week 1", value: "1" },
   { label: "Week 2", value: "2" },
   { label: "Week 3", value: "3" }
@@ -25,7 +25,7 @@ export default function WeeklyReplaysPage() {
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
-          <SelectLabel>Fruits</SelectLabel>
+          <SelectLabel>Weeks</SelectLabel>
           {items.map((item) => (
             <SelectItem key={item.value} value={item.value}>
               {item.label}
