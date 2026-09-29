@@ -37,7 +37,7 @@ export default async function Page() {
       </section>
 
       <section className="space-y-4">
-        <h2>About the GMs</h2>
+        <h2>Power Rankings (Week 4)</h2>
         <div className="grid gap-6 sm:grid-cols-3 lg:grid-cols-2">
           {[...powerRankings]
             .sort((a, b) => a.newRank - b.newRank)
