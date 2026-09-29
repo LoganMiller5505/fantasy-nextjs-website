@@ -1,7 +1,23 @@
 import { sql } from '@/lib/db'
 import { Video } from './_components/vimeo_video'
-import { Bio } from './_components/bio'
+// import { Bio } from './_components/bio'
+import { PowerRank } from './_components/power_rank'
 import Link from "next/link";
+
+const powerRankings = [
+  { name: "Whieldon", alias: "Naberhood Creep", newRank: 3, oldRank: 1, logoPath: "/logos/Whieldon.svg", description: "15-1 lmaooo" },
+  { name: "Robert", alias: "Come Cee Whats in my Basement", newRank: 1, oldRank: 2, logoPath: "/logos/Robert.jpg", description: "Black magic bs" },
+  { name: "Andy", alias: "Fortuitous Bust", newRank: 7, oldRank: 4, logoPath: "/logos/Andy.jpg", description: "Losers bracket MVP" },
+  { name: "Logan", alias: "Sleepy Joe Flacco", newRank: 5, oldRank: 5, logoPath: "/logos/Logan.jpg", description: "The sexiest man alive" },
+  { name: "Max", alias: "Omani Rials", newRank: 10, oldRank: 8, logoPath: "/logos/Max.svg", description: "Inshallah the Omani Caliphate shall prevail" },
+  { name: "Ethan", alias: "Gay butt stuff", newRank: 2, oldRank: 6, logoPath: "/logos/Ethan.svg", description: "The gayest of the gays" },
+  { name: "James", alias: "Dont kirk off your cousins", newRank: 4, oldRank: 3, logoPath: "/logos/James.svg", description: "The most Kirk of the Kirks" },
+  { name: "Matt", alias: "Talking tua 12 year old", newRank: 9, oldRank: 12, logoPath: "/logos/Matt.svg", description: "Fighting dicks on an island" },
+  { name: "Dillon", alias: "Big Intelligent Group Dominance", newRank: 6, oldRank: 9, logoPath: "/logos/Dillon.svg", description: "Bama shirt winner" },
+  { name: "Landon", alias: "Nacua Matata", newRank: 12, oldRank: 10, logoPath: "/logos/Landon.png", description: "On the come-up?" },
+  { name: "Brady", alias: "CRashee and Dart", newRank: 8, oldRank: 7, logoPath: "/logos/Brady.svg", description: "How is he 2-0 fr" },
+  { name: "Andrew", alias: "Inside Zone x3 Aww Punts", newRank: 11, oldRank: 11, logoPath: "/logos/Andrew.svg", description: "Anti-schedule man" },
+]
 
 export default async function Page() {
   //const players = await sql`SELECT id, column_1 FROM test LIMIT 10`
@@ -22,19 +38,10 @@ export default async function Page() {
 
       <section className="space-y-4">
         <h2>About the GMs</h2>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <Bio name="Whieldon" alias="Naberhood Creep" logoPath="/logos/Whieldon.svg" description="15-1 lmaooo" yearsPlayed="3" />
-          <Bio name="Robert" alias="Come Cee Whats in my Basement" logoPath="/logos/Robert.jpg" description="Black magic bs" yearsPlayed="3" />
-          <Bio name="Andy" alias="Fortuitous Bust" logoPath="/logos/Andy.jpg" title="League Manager" description="Losers bracket MVP" yearsPlayed="3" />
-          <Bio name="Logan" alias="Sleepy Joe Flacco" logoPath="/logos/Logan.jpg" title="League Manager" description="The sexiest man alive" yearsPlayed="3" />
-          <Bio name="Max" alias="Omani Rials" logoPath="/logos/Max.svg" description="Inshallah the Omani Caliphate shall prevail" yearsPlayed="3" />
-          <Bio name="Ethan" alias="Gay butt stuff" logoPath="/logos/Ethan.svg" description="The gayest of the gays" yearsPlayed="3" />
-          <Bio name="James" alias="Dont kirk off your cousins" logoPath="/logos/James.svg" title="2025 League Champion" description="The most Kirk of the Kirks" yearsPlayed="3" />
-          <Bio name="Matt" alias="Talking tua 12 year old" logoPath="/logos/Matt.svg" title="2024 League Champion" description="Fighting dicks on an island" yearsPlayed="3" />
-          <Bio name="Dillon" alias="Big Intelligent Group Dominance" logoPath="/logos/Dillon.svg" description="Bama shirt winner" yearsPlayed="3" />
-          <Bio name="Landon" alias="Nacua Matata" logoPath="/logos/Landon.png" description="On the come-up?" yearsPlayed="2" />
-          <Bio name="Brady" alias="CRashee and Dart" logoPath="/logos/Brady.svg" description="How is he 2-0 fr" yearsPlayed="R" />
-          <Bio name="Andrew" alias="Inside Zone x3 Aww Punts" logoPath="/logos/Andrew.svg" description="Anti-schedule man" yearsPlayed="R" />
+        <div className="grid gap-6 sm:grid-cols-3 lg:grid-cols-2">
+          {[...powerRankings]
+            .sort((a, b) => a.newRank - b.newRank)
+            .map((team) => <PowerRank key={team.name} {...team} />)}
         </div>
       </section>
 
