@@ -1,8 +1,31 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "./typeset.css";
 
 @custom-variant dark (&:is(.dark *));
+
+.typeset-docs {
+  --typeset-font-body: var(--font-geist);
+  --typeset-font-heading: var(--font-geist);
+  --typeset-font-mono: var(--font-geist-mono);
+  --typeset-size: 15px;
+  --typeset-leading: 1.75;
+  --typeset-flow: 1.25em;
+}
+
+/* Image size hints from Markdown titles: ![alt](src "small") */
+.typeset img[data-size="small"],
+.typeset img[data-size="medium"] {
+  display: block;
+  margin-inline: auto;
+}
+.typeset img[data-size="small"] {
+  width: min(100%, 20rem);
+}
+.typeset img[data-size="medium"] {
+  width: min(100%, 32rem);
+}
 
 :root {
   --muted: oklch(0.97 0 0);
