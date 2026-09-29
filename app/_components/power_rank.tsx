@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 
-type PowerRankInfo = { name: string; alias: string; newRank: number; oldRank: number; logoPath: string; description: string }
+type PowerRankInfo = { name: string; alias: string; newRank: number; oldRank?: number; logoPath: string; description: string }
 
 
 export function PowerRank({ name, alias, newRank, oldRank, logoPath, description }: PowerRankInfo) {
