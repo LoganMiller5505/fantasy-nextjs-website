@@ -1,33 +1,65 @@
 "use client"
 
-import { createColumnHelper } from "@tanstack/react-table"
+import {
+  constructSortFn,
+  createColumnHelper,
+  type CellData,
+  type Column,
+} from "@tanstack/react-table"
 import { type DataTableFeatures } from "./data-table-features"
-import { MoreHorizontal } from "lucide-react"
 import { ArrowUpDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
-export type Payment = {
-  id: string
-  amount: number
-  status: "pending" | "processing" | "success" | "failed"
-  email: string
+// Every column in source.all_time after `player`, in table order.
+const statColumns = [
+  "Matt", "James", "Logan", "Robert", "Andy", "Max", "Andrew", "Landon",
+  "Dillon", "Whieldon", "Ethan", "Brady", "Nick", "Cali",
+  "GP", "Total", "Win%", "Div Total", "Div Win%",
+  "East", "East %", "North", "North %", "South", "South %",
+] as const
+
+// Hide the head-to-head columns (Matt through GP) until toggled on via "Columns".
+export const initialColumnVisibility = Object.fromEntries(
+  statColumns
+    .slice(0, statColumns.indexOf("GP") + 1)
+    .map((key) => [key, false])
+)
+
+// This type is used to define the shape of our data (one row of source.all_time).
+export type AllTime = { player: string } & Record<
+  (typeof statColumns)[number],
+  string | number | null
+>
+
+// Percentages arrive as strings like "0.4444", which alphanumeric sorting
+// would rank above "0.5", so compare them as numbers instead.
+const sortFn_numeric = constructSortFn({
+  resolveDataValue: (value) => (value == null ? -Infinity : Number(value)),
+  sort: (a, b) => (a === b ? 0 : a > b ? 1 : -1),
+})
+
+function SortableHeader<TValue extends CellData>({
+  column,
+  title,
+}: {
+  column: Column<DataTableFeatures, AllTime, TValue>
+  title: string
+}) {
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+    >
+      {title}
+      <ArrowUpDown className="ml-2 h-4 w-4" />
+    </Button>
+  )
 }
 
 // Use `accessor` for data columns and `display` for columns without one.
-const columnHelper = createColumnHelper<DataTableFeatures, Payment>()
+const columnHelper = createColumnHelper<DataTableFeatures, AllTime>()
 
 export const columns = columnHelper.columns([
     columnHelper.display({
@@ -52,62 +84,20 @@ export const columns = columnHelper.columns([
         enableSorting: false,
         enableHiding: false,
     }),
-    columnHelper.display({
-    id: "actions",
-    cell: ({ row }) => {
-      const payment = row.original
- 
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button variant="ghost" className="h-8 w-8 p-0" />}
-          >
-            <span className="sr-only">Open menu</span>
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => navigator.clipboard.writeText(payment.id)}
-              >
-                Copy payment ID
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>View customer</DropdownMenuItem>
-            <DropdownMenuItem>View payment details</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
+  columnHelper.accessor("player", {
+    header: ({ column }) => <SortableHeader column={column} title="Player" />,
+    enableHiding: false,
   }),
-  columnHelper.accessor("status", {
-    header: "Status",
-  }),
-  columnHelper.accessor("email", {
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Email
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-  }),
-  columnHelper.accessor("amount", {
-    header: () => <div className="text-right">Amount</div>,
-    cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("amount"))
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount)
- 
-      return <div className="text-right font-medium">{formatted}</div>
-    },
-  }),
+  ...statColumns.map((key) =>
+    columnHelper.accessor(key, {
+      header: ({ column }) => <SortableHeader column={column} title={key} />,
+      ...(key.endsWith("%") && {
+        sortFn: sortFn_numeric,
+        cell: ({ getValue }) => {
+          const value = getValue()
+          return value == null ? null : `${(Number(value) * 100).toFixed(2)}%`
+        },
+      }),
+    })
+  ),
 ])

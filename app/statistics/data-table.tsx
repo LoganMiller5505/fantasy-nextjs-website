@@ -30,21 +30,38 @@ import {
 
 import { features, type DataTableFeatures } from "./data-table-features"
 
+// Columns that stay pinned to the left while the table scrolls sideways. They
+// need an opaque background, so match the row's hover/selected colors (and its
+// color transition) by hand.
+const stickyColumnClasses: Record<string, string> = {
+  select: "sticky left-0 z-10 w-8 min-w-8 max-w-8",
+  player: "sticky left-8 z-10",
+}
+const stickyBackground =
+  "bg-background transition-colors group-hover:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] group-data-[state=selected]:bg-muted"
+
+function stickyClass(columnId: string) {
+  const classes = stickyColumnClasses[columnId]
+  return classes && `${classes} ${stickyBackground}`
+}
+
 interface DataTableProps<TData extends RowData> {
   columns: ColumnDef<DataTableFeatures, TData>[]
   data: TData[]
+  initialColumnVisibility?: ColumnVisibilityState
 }
 
 export function DataTable<TData extends RowData>({
   columns,
   data,
+  initialColumnVisibility = {},
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   )
   const [columnVisibility, setColumnVisibility] =
-    React.useState<ColumnVisibilityState>({})
+    React.useState<ColumnVisibilityState>(initialColumnVisibility)
   const [rowSelection, setRowSelection] = React.useState({})
   const table = useTable({
     features,
@@ -54,6 +71,9 @@ export function DataTable<TData extends RowData>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: { pageIndex: 0, pageSize: 15 },
+    },
     state: {
       sorting,
       columnFilters,
@@ -64,16 +84,12 @@ export function DataTable<TData extends RowData>({
 
   return (
     <div>
-        <div className="flex-1 text-sm text-muted-foreground">
-        {table.getFilteredSelectedRowModel().rows.length} of{" "}
-        {table.getFilteredRowModel().rows.length} row(s) selected.
-        </div>
         <div className="flex items-center py-4">
         <Input
-          placeholder="Filter emails..."
-          value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter players..."
+          value={(table.getColumn("player")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("email")?.setFilterValue(event.target.value)
+            table.getColumn("player")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
@@ -108,10 +124,10 @@ export function DataTable<TData extends RowData>({
         <Table>
             <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
+                <TableRow key={headerGroup.id} className="group">
                 {headerGroup.headers.map((header) => {
                     return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className={stickyClass(header.column.id)}>
                         {header.isPlaceholder ? null : (
                         <table.FlexRender header={header} />
                         )}
@@ -127,9 +143,10 @@ export function DataTable<TData extends RowData>({
                 <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
+                    className="group"
                 >
                     {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className={stickyClass(cell.column.id)}>
                         <table.FlexRender cell={cell} />
                     </TableCell>
                     ))}
@@ -146,6 +163,10 @@ export function DataTable<TData extends RowData>({
         </Table>
         </div>
         <div className="flex items-center justify-end space-x-2 py-4">
+            <div className="flex-1 text-sm text-muted-foreground">
+            {table.getFilteredSelectedRowModel().rows.length} of{" "}
+            {table.getFilteredRowModel().rows.length} row(s) selected.
+            </div>
             <Button
             variant="outline"
             size="sm"
