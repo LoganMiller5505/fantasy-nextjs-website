@@ -10,6 +10,7 @@ import {
     type SortingState
 } from "@tanstack/react-table"
 
+import { EyeIcon, EyeOffIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -31,14 +32,13 @@ import {
 import { features, type DataTableFeatures } from "./data-table-features"
 
 // Columns that stay pinned to the left while the table scrolls sideways. They
-// need an opaque background, so match the row's hover/selected colors (and its
-// color transition) by hand.
+// need an opaque background, so match the row's hover color (and its color
+// transition) by hand.
 const stickyColumnClasses: Record<string, string> = {
-  select: "sticky left-0 z-10 w-8 min-w-8 max-w-8",
-  player: "sticky left-8 z-10",
+  player: "sticky left-0 z-10",
 }
 const stickyBackground =
-  "bg-background transition-colors group-hover:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] group-data-[state=selected]:bg-muted"
+  "bg-background transition-colors group-even:bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))] group-hover:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]"
 
 function stickyClass(columnId: string) {
   const classes = stickyColumnClasses[columnId]
@@ -49,20 +49,33 @@ interface DataTableProps<TData extends RowData> {
   columns: ColumnDef<DataTableFeatures, TData>[]
   data: TData[]
   initialColumnVisibility?: ColumnVisibilityState
+  initialSorting?: SortingState
+  // Optional button that shows/hides a group of columns at once
+  quickToggle?: { label: string; columns: readonly string[] }
 }
 
 export function DataTable<TData extends RowData>({
   columns,
   data,
   initialColumnVisibility = {},
+  initialSorting = [],
+  quickToggle,
 }: DataTableProps<TData>) {
-  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [sorting, setSorting] = React.useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   )
   const [columnVisibility, setColumnVisibility] =
     React.useState<ColumnVisibilityState>(initialColumnVisibility)
-  const [rowSelection, setRowSelection] = React.useState({})
+
+  // Shows the whole group if any of it is hidden, otherwise hides it
+  const quickToggleShown =
+    quickToggle?.columns.every((id) => columnVisibility[id] !== false) ?? false
+  const toggleQuickColumns = () =>
+    setColumnVisibility((prev) => ({
+      ...prev,
+      ...Object.fromEntries(quickToggle!.columns.map((id) => [id, !quickToggleShown])),
+    }))
   const table = useTable({
     features,
     data,
@@ -70,7 +83,6 @@ export function DataTable<TData extends RowData>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
     initialState: {
       pagination: { pageIndex: 0, pageSize: 15 },
     },
@@ -78,7 +90,6 @@ export function DataTable<TData extends RowData>({
       sorting,
       columnFilters,
       columnVisibility,
-      rowSelection,
     },
   })
 
@@ -93,9 +104,16 @@ export function DataTable<TData extends RowData>({
           }
           className="max-w-sm"
         />
+        <div className="ml-auto flex gap-2">
+        {quickToggle && (
+            <Button variant="outline" onClick={toggleQuickColumns}>
+                {quickToggleShown ? <EyeOffIcon /> : <EyeIcon />}
+                {quickToggleShown ? "Hide" : "Show"} {quickToggle.label}
+            </Button>
+        )}
         <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="outline" className="ml-auto" />}>
-                Columns
+            <DropdownMenuTrigger render={<Button variant="outline" />}>
+                Column Toggle
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                 {table
@@ -120,6 +138,7 @@ export function DataTable<TData extends RowData>({
             </DropdownMenuContent>
         </DropdownMenu>
         </div>
+        </div>
         <div className="overflow-hidden rounded-md border">
         <Table>
             <TableHeader>
@@ -142,8 +161,7 @@ export function DataTable<TData extends RowData>({
                 table.getRowModel().rows.map((row) => (
                 <TableRow
                     key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    className="group"
+                    className="group even:bg-muted/30"
                 >
                     {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className={stickyClass(cell.column.id)}>
@@ -163,10 +181,6 @@ export function DataTable<TData extends RowData>({
         </Table>
         </div>
         <div className="flex items-center justify-end space-x-2 py-4">
-            <div className="flex-1 text-sm text-muted-foreground">
-            {table.getFilteredSelectedRowModel().rows.length} of{" "}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
-            </div>
             <Button
             variant="outline"
             size="sm"

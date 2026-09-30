@@ -15,25 +15,29 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
   const [people, setPeople] = useState<string[]>([])
   const [types, setTypes] = useState<string[]>([])
   const [creators, setCreators] = useState<string[]>([])
+  const [years, setYears] = useState<string[]>([])
   const [openIndex, setOpenIndex] = useState(0)
   const [previewOpen, setPreviewOpen] = useState(false)
 
   const peopleOptions = uniq(items.flatMap((i) => i.people))
   const typeOptions = uniq(items.map((i) => i.type))
   const creatorOptions = uniq(items.map((i) => i.creator))
+  const yearOptions = uniq(items.map((i) => i.date.slice(0, 4))).reverse()
 
-  // Within People: item must include every selected person. Type/Creator: any selected. Across filters: AND.
+  // Within People: item must include every selected person. Type/Creator/Year: any selected. Across filters: AND.
   const visible = items
     .filter((i) => people.length === 0 || people.every((p) => i.people.includes(p)))
     .filter((i) => types.length === 0 || types.includes(i.type))
     .filter((i) => creators.length === 0 || (i.creator !== undefined && creators.includes(i.creator)))
+    .filter((i) => years.length === 0 || years.includes(i.date.slice(0, 4)))
     .toSorted((a, b) => b.date.localeCompare(a.date))
 
-  const hasFilters = people.length + types.length + creators.length > 0
+  const hasFilters = people.length + types.length + creators.length + years.length > 0
   const clearFilters = () => {
     setPeople([])
     setTypes([])
     setCreators([])
+    setYears([])
   }
 
   // Step through the filtered list, wrapping around at either end
@@ -53,6 +57,7 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
         <FacetFilter label="About" options={peopleOptions} selected={people} onChange={setPeople} />
         <FacetFilter label="Type" options={typeOptions} selected={types} onChange={setTypes} />
         <FacetFilter label="Creator" options={creatorOptions} selected={creators} onChange={setCreators} />
+        <FacetFilter label="Year" options={yearOptions} selected={years} onChange={setYears} />
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear
