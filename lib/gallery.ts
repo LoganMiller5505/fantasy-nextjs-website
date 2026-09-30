@@ -1,7 +1,13 @@
-type Base = { src: string, alt: string, width: number, height: number, creator?: string, date: string, people: string[], type: string }
+type Base = { alt: string, width: number, height: number, creator?: string, date: string, people: string[], type: string }
 export type GalleryItem = 
-    | (Base & { kind: 'image' })
-    | (Base & { kind: 'video', poster: string })
+    | (Base & { kind: 'image', src: string })
+    | (Base & { kind: 'video', src: string, poster: string })
+    | (Base & { kind: 'youtube', videoId: string, poster?: string })
+
+export const keyOf = (i: GalleryItem) => i.kind === 'youtube' ? `yt:${i.videoId}` : i.src
+export const posterOf = (i: GalleryItem) =>
+  i.kind === 'image' ? i.src
+  : i.poster ?? (i.kind === 'video' ? i.src.replace(/\.[^.]+$/, '.jpg') : `https://i.ytimg.com/vi/${i.videoId}/hqdefault.jpg`)
 
 export const GALLERY: GalleryItem[] = [
   {
@@ -281,8 +287,28 @@ export const GALLERY: GalleryItem[] = [
     people: ['logan'],
     type: 'graphic',
   },
-  // TODO: NICK SIX VIDEO
-  // TODO: DILLON W 3-10 VIDEO
+  {
+    kind: 'video',
+    src: '/slander-gallery/NickSix.mov',
+    alt: '',
+    width: 640, height: 360,
+    creator: 'logan',
+    date: '2024-12-02',
+    people: ['nick', 'robert'],
+    type: 'video',
+    poster: '/slander-gallery/NickSix.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/DillonJumpscare.mov',
+    alt: '',
+    width: 640, height: 310,
+    creator: 'robert',
+    date: '2024-12-05',
+    people: ['dillon'],
+    type: 'video',
+    poster: '/slander-gallery/DillonJumpscare.jpg',
+  },
   {
     kind: 'image',
     src: '/slander-gallery/PlayoffTierlist.jpg',
@@ -362,7 +388,26 @@ export const GALLERY: GalleryItem[] = [
     people: ['max'],
     type: 'graphic',
   },
-  // TODO: Add robert slop videos (I GUESS)
+  {
+    kind: 'image',
+    src: '/slander-gallery/Thornussy.png',
+    alt: '',
+    width: 998, height: 1460,
+    date: '2025-08-06',
+    people: ['logan', 'ethan'],
+    type: 'text',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/FantasyWeekOneSlander.mov',
+    alt: '',
+    width: 400, height: 640,
+    creator: 'logan',
+    date: '2025-09-08',
+    people: ['landon', 'robert', 'dillon', 'whieldon', 'cali', 'ethan', 'andy', 'matt'],
+    type: 'video',
+    poster: '/slander-gallery/FantasyWeekOneSlander.jpg',
+  },
   {
     kind: 'image',
     src: '/slander-gallery/LoganWashed.jpg',
@@ -381,6 +426,126 @@ export const GALLERY: GalleryItem[] = [
     date: '2025-09-23',
     people: ['landon', 'ethan'],
     type: 'text',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/AndyFraudCalling.mov',
+    alt: '',
+    width: 360, height: 640,
+    creator: 'robert',
+    date: '2025-09-23',
+    people: ['andy'],
+    type: 'video',
+    poster: '/slander-gallery/AndyFraudCalling.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/WhieldonCupcakes.mov',
+    alt: '',
+    width: 640, height: 352,
+    creator: 'robert',
+    date: '2025-09-23',
+    people: ['whieldon'],
+    type: 'video',
+    poster: '/slander-gallery/WhieldonCupcakes.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/LetRobertCook.mov',
+    alt: '',
+    width: 360, height: 640,
+    creator: 'robert',
+    date: '2025-09-23',
+    people: ['robert'],
+    type: 'video',
+    poster: '/slander-gallery/LetRobertCook.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/WhieldonThenNow.mov',
+    alt: '',
+    width: 480, height: 596,
+    creator: 'robert',
+    date: '2025-09-24',
+    people: ['whieldon'],
+    type: 'video',
+    poster: '/slander-gallery/WhieldonThenNow.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/LoganFartedAgain.mov',
+    alt: '',
+    width: 360, height: 640,
+    creator: 'robert',
+    date: '2025-10-07',
+    people: ['logan'],
+    type: 'video',
+    poster: '/slander-gallery/LoganFartedAgain.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/LoganLandonLossDance.mov',
+    alt: '',
+    width: 360, height: 640,
+    creator: 'robert',
+    date: '2025-10-07',
+    people: ['logan', 'landon'],
+    type: 'video',
+    poster: '/slander-gallery/LoganLandonLossDance.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/AndyFraudIncomingCall.mov',
+    alt: '',
+    width: 360, height: 640,
+    creator: 'robert',
+    date: '2025-10-07',
+    people: ['andy'],
+    type: 'video',
+    poster: '/slander-gallery/AndyFraudIncomingCall.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/RobertAndyJohnCena.mov',
+    alt: '',
+    width: 372, height: 640,
+    creator: 'robert',
+    date: '2025-10-07',
+    people: ['robert', 'andy'],
+    type: 'video',
+    poster: '/slander-gallery/RobertAndyJohnCena.jpg',
+  },
+  {
+    kind: 'youtube',
+    videoId: '1y8Z5GJN3v8',
+    alt: '',
+    width: 1920, height: 1080,
+    creator: 'robert',
+    date: '2025-10-19',
+    people: ['dillon', 'landon', 'matt', 'robert', 'andy', 'logan', 'james', 'whieldon', 'cali', 'ethan'],
+    type: 'video',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/HowLoganConfusedTheLeague.mov',
+    alt: '',
+    width: 640, height: 356,
+    creator: 'logan',
+    date: '2025-10-21',
+    people: ['logan'],
+    type: 'video',
+    poster: '/slander-gallery/HowLoganConfusedTheLeague.jpg',
+  },
+  {
+    kind: 'video',
+    src: '/slander-gallery/LoganHussein.mov',
+    alt: '',
+    width: 640, height: 268,
+    creator: 'robert',
+    date: '2025-10-22',
+    people: ['logan'],
+    type: 'video',
+    poster: '/slander-gallery/LoganHussein.jpg',
   },
   {
     kind: 'image',
@@ -422,7 +587,27 @@ export const GALLERY: GalleryItem[] = [
     people: ['logan', 'robert', 'matt'],
     type: 'meme',
   },
-  // TODO: Add dancing in the moonlight video
+  {
+    kind: 'video',
+    src: '/slander-gallery/EastDancingInThePlayoffs.mov',
+    alt: '',
+    width: 640, height: 348,
+    creator: 'logan',
+    date: '2025-12-10',
+    people: ['james', 'logan', 'robert', 'matt'],
+    type: 'video',
+    poster: '/slander-gallery/EastDancingInThePlayoffs.jpg',
+  },
+  {
+    kind: 'youtube',
+    videoId: 'PGS5A_JeEjo',
+    alt: '',
+    width: 1920, height: 1080,
+    creator: 'andy',
+    date: '2025-12-11',
+    people: ['landon'],
+    type: 'video',
+  },
   {
     kind: 'image',
     src: '/slander-gallery/MattPackwatchLandon.png',
@@ -470,6 +655,16 @@ export const GALLERY: GalleryItem[] = [
     date: '2026-08-29',
     people: ['brady'],
     type: 'meme',
+  },
+  {
+    kind: 'youtube',
+    videoId: 'XvRy6cckuCk',
+    alt: '',
+    width: 1920, height: 1080,
+    creator: 'robert',
+    date: '2026-09-17',
+    people: ['matt'],
+    type: 'video',
   },
   {
     kind: 'image',

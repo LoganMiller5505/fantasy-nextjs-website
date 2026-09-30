@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import type { GalleryItem } from "@/lib/gallery"
 import { FacetFilter } from "./facet-filter"
 import { GalleryPreview, GalleryTile } from "./gallery-tile"
+import { keyOf } from "@/lib/gallery"
 
 const uniq = (xs: (string | undefined)[]) =>
   [...new Set(xs.filter((x): x is string => Boolean(x)))].sort()
@@ -76,7 +77,7 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
           {visible.map((item, index) => {
             const ratio = item.width / item.height
             return (
-              <li key={item.src} style={{ flexGrow: ratio, flexBasis: `calc(var(--row-h) * ${ratio})` }}>
+              <li key={keyOf(item)} style={{ flexGrow: ratio, flexBasis: `calc(var(--row-h) * ${ratio})` }}>
                 <GalleryTile item={item} onOpen={() => { setOpenIndex(index); setPreviewOpen(true) }} />
               </li>
             )
