@@ -18,7 +18,7 @@ export default async function Recap({ slug }: { slug: string }) {
     }
 
     return (
-        <article id={`week-${slug}`} className="typeset typeset-docs mx-auto max-w-3xl scroll-mt-20">
+        <article id={`week-${slug}`} className="typeset typeset-docs mx-auto max-w-3xl scroll-mt-28 lg:scroll-mt-20">
             <Markdown
                 remarkPlugins={[remarkGfm]}
                 urlTransform={resolveUrl}

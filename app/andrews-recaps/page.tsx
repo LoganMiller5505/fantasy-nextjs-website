@@ -12,8 +12,13 @@ const RECAPS = [
 export default function AndrewsRecapsPage() {
     return (
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-            <nav aria-label="Weeks" className="lg:sticky lg:top-20 lg:w-40 lg:shrink-0">
-                <ul className="flex flex-wrap gap-1 lg:flex-col">
+            {/* Phones: a strip pinned under the site header (-mt-6 cancels <main>'s top padding
+                so it starts where it sticks). Desktop: a sidebar. */}
+            <nav
+                aria-label="Weeks"
+                className="sticky top-14 z-40 -mx-4 -mt-6 border-b bg-background/80 px-4 py-2 backdrop-blur lg:top-20 lg:mx-0 lg:mt-0 lg:w-40 lg:shrink-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
+            >
+                <ul className="flex gap-1 overflow-x-auto lg:flex-col">
                     {RECAPS.map(({ slug, title }) => (
                         <li key={slug}>
                             <a
