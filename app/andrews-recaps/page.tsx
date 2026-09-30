@@ -12,7 +12,7 @@ const RECAPS = [
 export default function AndrewsRecapsPage() {
     return (
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-            <nav aria-label="Weeks" className="lg:sticky lg:top-6 lg:w-40 lg:shrink-0">
+            <nav aria-label="Weeks" className="lg:sticky lg:top-20 lg:w-40 lg:shrink-0">
                 <ul className="flex flex-wrap gap-1 lg:flex-col">
                     {RECAPS.map(({ slug, title }) => (
                         <li key={slug}>
