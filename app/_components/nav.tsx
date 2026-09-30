@@ -26,7 +26,7 @@ function linkClass(active: boolean, className?: string) {
 
 export function Nav() {
   const pathname = usePathname();
-  const isActive = (href: string) => pathname.startsWith(href);
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur">
@@ -66,7 +66,8 @@ export function Nav() {
               </SheetHeader>
               <nav className="px-2">
                 <ul className="flex flex-col gap-1">
-                  {links.map(({ href, label }) => (
+                  {/* The site name links home on desktop; the menu spells it out */}
+                  {[{ href: "/", label: "Home" }, ...links].map(({ href, label }) => (
                     <li key={href}>
                       {/* SheetClose closes the panel when a link is tapped */}
                       <SheetClose
