@@ -1,44 +1,40 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import Markdown, { defaultUrlTransform } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Fragment } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator"
+import Recap from "./recap";
 
-const RECAP = "1-2";
-const RECAP_DIR = path.join(process.cwd(), "public", "andrew-recaps", RECAP);
+// Folders in public/andrew-recaps, newest first.
+const RECAPS = [
+    { slug: "3", title: "Week 3" },
+    { slug: "1-2", title: "Weeks 1 & 2" },
+];
 
-// Markdown image paths are relative to the .md file (e.g. images/p01-01.png),
-// so point them at where public/ serves them from.
-function resolveUrl(url: string) {
-    if (/^(https?:|\/|#|mailto:)/.test(url)) return defaultUrlTransform(url);
-    return defaultUrlTransform(`/andrew-recaps/${RECAP}/${url}`);
-}
-
-export default async function AndrewsRecapsPage() {
-    const source = await readFile(path.join(RECAP_DIR, `${RECAP}.md`), "utf8");
-
+export default function AndrewsRecapsPage() {
     return (
-        <article className="typeset typeset-docs mx-auto max-w-3xl">
-            <Markdown
-                remarkPlugins={[remarkGfm]}
-                urlTransform={resolveUrl}
-                // `node` is react-markdown's AST node; drop it so it isn't rendered as an attribute.
-                /* eslint-disable @typescript-eslint/no-unused-vars */
-                components={{
-                    table: ({ node, ...props }) => (
-                        <div className="typeset-scroll">
-                            <table {...props} />
-                        </div>
-                    ),
-                    // Image titles are size hints ("small" / "medium") from the pdf-to-markdown skill.
-                    img: ({ node, title, alt, ...props }) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img alt={alt ?? ""} {...props} data-size={title} loading="lazy" />
-                    ),
-                }}
-                /* eslint-enable @typescript-eslint/no-unused-vars */
-            >
-                {source}
-            </Markdown>
-        </article>
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+            <nav aria-label="Weeks" className="lg:sticky lg:top-6 lg:w-40 lg:shrink-0">
+                <ul className="flex flex-wrap gap-1 lg:flex-col">
+                    {RECAPS.map(({ slug, title }) => (
+                        <li key={slug}>
+                            <a
+                                href={`#week-${slug}`}
+                                className={buttonVariants({ variant: "ghost", className: "w-full justify-start" })}
+                            >
+                                {title}
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            </nav>
+
+            <div className="flex min-w-0 flex-1 flex-col gap-4">
+                {RECAPS.map(({ slug }, i) => (
+                    <Fragment key={slug}>
+                        {i > 0 && <Separator className="mx-auto max-w-3xl" />}
+                        <Recap slug={slug} />
+                    </Fragment>
+                ))}
+            </div>
+        </div>
     );
 }
