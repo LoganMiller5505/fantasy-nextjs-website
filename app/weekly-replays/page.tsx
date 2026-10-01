@@ -15,6 +15,9 @@ export default function WeeklyReplaysPage() {
           <ReplaysFromUrl weeks={weeks} />
         </Suspense>
       )}
+      <p className="text-sm text-muted-foreground">
+        Replays for weeks 2 and 3 are unavailable due to technical issues. All future weeks will be posted as normal.
+      </p>
     </div>
   )
 }

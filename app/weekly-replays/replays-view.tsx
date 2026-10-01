@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   Select,
@@ -23,56 +24,73 @@ export function ReplaysFromUrl({ weeks }: Props) {
 export function ReplaysView({ weeks, week }: Props & { week?: string | null }) {
   const router = useRouter()
   const selected = weeks.find((w) => w.week === week) ?? weeks.at(-1)!
-  const items = weeks.map((w) => ({ label: `Week ${w.week}`, value: w.week }))
+  const weekItems = weeks.map((w) => ({ label: `Week ${w.week}`, value: w.week }))
 
-  const reel = selected.videos.find((v) => v.isReel)
-  const matchups = selected.videos.filter((v) => !v.isReel)
+  // Matchup choice only applies to the week it was made in, so any week change resets to the reel
+  // (videos are sorted reel first)
+  const [picked, setPicked] = useState<{ week: string, src: string } | null>(null)
+  const video = (picked?.week === selected.week && selected.videos.find((v) => v.src === picked.src))
+    || selected.videos[0]
+  const matchupItems = selected.videos.map((v) => ({ label: v.title, value: v.src }))
 
   return (
     <div className="flex flex-col gap-6">
-      <Select
-        items={items}
-        value={selected.week}
-        onValueChange={(v) => v && router.replace(`?week=${v}`, { scroll: false })}
-      >
-        <SelectTrigger className="w-full max-w-48">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectLabel>Weeks</SelectLabel>
-            {items.toReversed().map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+      <div className="flex flex-wrap gap-2">
+        <Select
+          items={weekItems}
+          value={selected.week}
+          onValueChange={(v) => v && router.replace(`?week=${v}`, { scroll: false })}
+        >
+          <SelectTrigger className="w-full max-w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Weeks</SelectLabel>
+              {weekItems.toReversed().map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
 
-      {reel && <ReplayPlayer video={reel} />}
+        <Select
+          items={matchupItems}
+          value={video.src}
+          onValueChange={(src) => src && setPicked({ week: selected.week, src })}
+        >
+          <SelectTrigger className="w-full max-w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Matchups</SelectLabel>
+              {matchupItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
 
-      {matchups.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {matchups.map((v) => <ReplayPlayer key={v.src} video={v} />)}
-        </div>
-      )}
+      <ReplayPlayer key={video.src} video={video} />
     </div>
   )
 }
 
 function ReplayPlayer({ video }: { video: ReplayVideo }) {
   return (
-    <div className="flex flex-col gap-2">
-      <h2 className={video.isReel ? "text-lg font-semibold" : "text-sm font-medium"}>{video.title}</h2>
-      <video
-        key={video.src}
-        src={video.src}
-        controls
-        playsInline
-        preload="metadata"
-        className="aspect-video w-full rounded-md bg-black"
-      />
-    </div>
+    <video
+      src={video.src}
+      title={video.title}
+      controls
+      playsInline
+      preload="metadata"
+      className="aspect-video w-full rounded-md bg-black"
+    />
   )
 }
