@@ -2,8 +2,7 @@ import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-type PowerRankInfo = { name: string; alias: string; newRank: number; oldRank?: number; logoPath: string; description: string }
+import type { PowerRankInfo } from "@/lib/power-rankings";
 
 function RankChange({ newRank, oldRank }: { newRank: number; oldRank?: number }) {
     const delta = oldRank == null ? 0 : oldRank - newRank;
