@@ -180,6 +180,7 @@ export function DataTable<TData extends RowData>({
             </TableBody>
         </Table>
         </div>
+        {/* Pagination 
         <div className="flex items-center justify-end space-x-2 py-4">
             <Button
             variant="outline"
@@ -198,6 +199,7 @@ export function DataTable<TData extends RowData>({
             Next
             </Button>
       </div>
+      */}
     </div>
   )
 }

@@ -9,22 +9,22 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 const powerRankings = [
   { name: "Whieldon", alias: "Naberhood Creep",               newRank: 8,   oldRank: 7, logoPath: "/logos/Whieldon.svg", description: "How the mighty have fallen" },
   { name: "Robert", alias: "Come Cee Whats in my Basement",   newRank: 9,   oldRank: 10, logoPath: "/logos/Robert.jpg", description: "Has he lost the magic?" },
-  { name: "Andy", alias: "Fortuitous Bust",                   newRank: 5,   oldRank: 6, logoPath: "/logos/Andy.jpg", description: "115 or nothing" },
+  { name: "Andy", alias: "Fortuitous Bust",                   newRank: 5,   oldRank: 6, logoPath: "/logos/Andy.jpg", description: "115 points or nothing" },
   { name: "Logan", alias: "Sleepy Joe Flacco",                newRank: 1,   oldRank: 1, logoPath: "/logos/Logan.jpg", description: "The clear favorite" },
   { name: "Max", alias: "Omani Rials",                        newRank: 2,   oldRank: 3, logoPath: "/logos/Max.svg", description: "Strongest player in the strongest division" },
   { name: "Ethan", alias: "Gay butt stuff",                   newRank: 12,  oldRank: 11, logoPath: "/logos/Ethan.svg", description: "Weakest player in the weakest division" },
-  { name: "James", alias: "Dont kirk off your cousins",       newRank: 11,  oldRank: 12, logoPath: "/logos/James.svg", description: "Only here because Ethan's worse" },
-  { name: "Matt", alias: "Talking tua 12 year old",           newRank: 4,   oldRank: 5, logoPath: "/logos/Matt.svg", description: "Bouncing back strong from last season" },
+  { name: "James", alias: "Dont kirk off your cousins",       newRank: 11,  oldRank: 12, logoPath: "/logos/James.jpg", description: "Only here because Ethan's worse" },
+  { name: "Matt", alias: "Robert molester",                   newRank: 4,   oldRank: 5, logoPath: "/logos/Matt.svg", description: "Bouncing back strong from last season" },
   { name: "Dillon", alias: "Big Intelligent Group Dominance", newRank: 10,  oldRank: 9, logoPath: "/logos/Dillon.svg", description: "Going back to whence he came" },
   { name: "Landon", alias: "Nacua Matata",                    newRank: 7,   oldRank: 8, logoPath: "/logos/Landon.png", description: "Volatility personified" },
   { name: "Brady", alias: "CRashee and Dart",                 newRank: 3,   oldRank: 4, logoPath: "/logos/Brady.svg", description: "Reeking of fraudulence, but still undefeated" },
-  { name: "Andrew", alias: "Inside Zone x3 Aww Punts",        newRank: 6,   oldRank: 2, logoPath: "/logos/Andrew.svg", description: "Bugatti in trailer park" },
+  { name: "Andrew", alias: "Inside Zone x3 Aww Punts",        newRank: 6,   oldRank: 2, logoPath: "/logos/Andrew.jpg", description: "Bugatti in trailer park" },
 ]
 
 const sections = [
   { href: "/weekly-replays", title: "Weekly Replays", description: "Graphed playback for each matchup", icon: ChartLine },
   { href: "/andrews-recaps", title: "Andrew's Recaps", description: "Hand-written weekly summaries", icon: NotebookPen },
-  { href: "/statistics", title: "Statistics", description: "Various stats and data", icon: ChartColumn },
+  { href: "/statistics", title: "Statistics", description: "All-time matchups and head-to-heads", icon: ChartColumn },
   { href: "/slander-gallery", title: "Slander Gallery", description: "A compilation of all league slander", icon: Flame },
 ]
 
