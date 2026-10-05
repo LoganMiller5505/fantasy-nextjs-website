@@ -15,7 +15,7 @@ function RankChange({ newRank, oldRank }: { newRank: number; oldRank?: number })
     return <Badge variant="secondary"><Minus />0</Badge>;
 }
 
-export function PowerRank({ name, alias, newRank, oldRank, logoPath, description }: PowerRankInfo) {
+export function PowerRank({ name, alias, newRank, oldRank, record, logoPath, description }: PowerRankInfo) {
     return (
         <Card>
             <CardHeader>
@@ -32,7 +32,10 @@ export function PowerRank({ name, alias, newRank, oldRank, logoPath, description
                     </div>
                 </div>
                 <CardAction>
-                    <RankChange newRank={newRank} oldRank={oldRank} />
+                    <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="tabular-nums">{record}</Badge>
+                        <RankChange newRank={newRank} oldRank={oldRank} />
+                    </div>
                 </CardAction>
             </CardHeader>
             <CardContent className="text-base">

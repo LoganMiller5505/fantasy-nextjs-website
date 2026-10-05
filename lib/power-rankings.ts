@@ -17,26 +17,27 @@ export const TEAMS: Record<TeamKey, { alias: string, logoPath: string }> = {
   Andrew:   { alias: "Inside Zone x3 Aww Punts",        logoPath: "/logos/Andrew.jpg" },
 }
 
-export type Ranking = { team: TeamKey, rank: number, description: string }
+export type Ranking = { team: TeamKey, rank: number, record: string, description: string }
 export type PowerRankingWeek = { week: number, rankings: Ranking[] }
-export type PowerRankInfo = { name: string, alias: string, newRank: number, oldRank?: number, logoPath: string, description: string }
+export type PowerRankInfo = { name: string, alias: string, newRank: number, oldRank?: number, record: string, logoPath: string, description: string }
 
 export const POWER_RANKINGS: PowerRankingWeek[] = [
   {
     week: 3,
+    // TODO: records are "0-0" placeholders, replace with the real week 3 records
     rankings: [
-      { team: "Whieldon", rank: 8,  description: "How the mighty have fallen" },
-      { team: "Robert",   rank: 9,  description: "Has he lost the magic?" },
-      { team: "Andy",     rank: 5,  description: "115 points or nothing" },
-      { team: "Logan",    rank: 1,  description: "The clear favorite" },
-      { team: "Max",      rank: 2,  description: "Strongest player in the strongest division" },
-      { team: "Ethan",    rank: 12, description: "Weakest player in the weakest division" },
-      { team: "James",    rank: 11, description: "Only here because Ethan's worse" },
-      { team: "Matt",     rank: 4,  description: "Bouncing back strong from last season" },
-      { team: "Dillon",   rank: 10, description: "Going back to whence he came" },
-      { team: "Landon",   rank: 7,  description: "Volatility personified" },
-      { team: "Brady",    rank: 3,  description: "Reeking of fraudulence, but still undefeated" },
-      { team: "Andrew",   rank: 6,  description: "Bugatti in trailer park" },
+      { team: "Whieldon", rank: 8,  record: "1-2", description: "How the mighty have fallen" },
+      { team: "Robert",   rank: 9,  record: "1-2", description: "Has he lost the magic?" },
+      { team: "Andy",     rank: 5,  record: "2-1", description: "115 points or nothing" },
+      { team: "Logan",    rank: 1,  record: "3-0", description: "The clear favorite" },
+      { team: "Max",      rank: 2,  record: "2-1", description: "Strongest player in the strongest division" },
+      { team: "Ethan",    rank: 12, record: "1-2", description: "Weakest player in the weakest division" },
+      { team: "James",    rank: 11, record: "0-3", description: "Only here because Ethan's worse" },
+      { team: "Matt",     rank: 4,  record: "2-1", description: "Bouncing back strong from last season" },
+      { team: "Dillon",   rank: 10, record: "0-3", description: "Going back to whence he came" },
+      { team: "Landon",   rank: 7,  record: "2-1", description: "Volatility personified" },
+      { team: "Brady",    rank: 3,  record: "3-0", description: "Reeking of fraudulence, but still undefeated" },
+      { team: "Andrew",   rank: 6,  record: "1-2", description: "Bugatti in trailer park" },
     ],
   },
 ]
@@ -48,11 +49,12 @@ export function getRankings(weeks: PowerRankingWeek[], week: number): PowerRankI
   if (!current) return []
 
   return current.rankings
-    .map(({ team, rank, description }) => ({
+    .map(({ team, rank, record, description }) => ({
       name: team,
       ...TEAMS[team],
       newRank: rank,
       oldRank: previous?.rankings.find((r) => r.team === team)?.rank,
+      record,
       description,
     }))
     .toSorted((a, b) => a.newRank - b.newRank)
