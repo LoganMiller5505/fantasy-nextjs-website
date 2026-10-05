@@ -662,7 +662,7 @@ export const GALLERY: GalleryItem[] = [
     alt: '',
     width: 456, height: 569,
     creator: 'logan',
-    date: '2029-09-15',
+    date: '2026-09-15',
     people: ['max','dillon','ethan','andy','brady','andrew','landon','whieldon','logan','matt','james','robert'],
     type: 'meme',
   },
