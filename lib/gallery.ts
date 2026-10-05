@@ -657,6 +657,16 @@ export const GALLERY: GalleryItem[] = [
     type: 'meme',
   },
   {
+    kind: 'image',
+    src: '/slander-gallery/MaxPortrait.png',
+    alt: '',
+    width: 456, height: 569,
+    creator: 'logan',
+    date: '2029-09-15',
+    people: ['max','dillon','ethan','andy','brady','andrew','landon','whieldon','logan','matt','james','robert'],
+    type: 'meme',
+  },
+  {
     kind: 'youtube',
     videoId: 'XvRy6cckuCk',
     alt: '',
