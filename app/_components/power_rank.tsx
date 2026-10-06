@@ -2,7 +2,7 @@ import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PowerRankInfo } from "@/lib/power-rankings";
+import type { Author, PowerRankInfo } from "@/lib/power-rankings";
 
 function RankChange({ newRank, oldRank }: { newRank: number; oldRank?: number }) {
     const delta = oldRank == null ? 0 : oldRank - newRank;
@@ -12,10 +12,11 @@ function RankChange({ newRank, oldRank }: { newRank: number; oldRank?: number })
     if (delta < 0) {
         return <Badge variant="destructive"><ArrowDown />{delta}</Badge>;
     }
-    return <Badge variant="secondary"><Minus />0</Badge>;
+    return <Badge className="bg-yellow-500/15 text-yellow-600 dark:text-yellow-400"><Minus />0</Badge>;
 }
 
-export function PowerRank({ name, alias, newRank, oldRank, record, logoPath, description }: PowerRankInfo) {
+export function PowerRank({ name, alias, newRank, oldRank, record, logoPath, description, loganDescription, andyDescription, author }: PowerRankInfo & { author: Author }) {
+    const text = (author === 'andy' ? andyDescription : loganDescription) ?? description;
     return (
         <Card>
             <CardHeader>
@@ -39,7 +40,7 @@ export function PowerRank({ name, alias, newRank, oldRank, record, logoPath, des
                 </CardAction>
             </CardHeader>
             <CardContent className="text-base">
-                {description}
+                {text}
                 {oldRank != null && <span className="block text-sm text-muted-foreground">Last week: #{oldRank}</span>}
             </CardContent>
         </Card>
