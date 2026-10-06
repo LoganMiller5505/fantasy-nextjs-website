@@ -17,7 +17,7 @@ export function PowerRankingsFromUrl({ weeks }: Props) {
 }
 
 export function PowerRankingsView({ weeks, week }: Props & { week?: string | null }) {
-  const [author, setAuthor] = useState<Author>('logan')
+  const [author, setAuthor] = useState<Author>('andy')
   const found = weeks.findIndex((w) => String(w.week) === week)
   const index = found === -1 ? weeks.length - 1 : found
   const selected = weeks[index]
@@ -33,15 +33,15 @@ export function PowerRankingsView({ weeks, week }: Props & { week?: string | nul
             <h2>Power Rankings</h2>
             {hasAuthors && (
               <div role="group" aria-label="Description author" className="inline-flex items-center rounded-lg bg-muted p-[3px]">
-                <AuthorButton active={author === 'logan'} label="Logan's descriptions" onClick={() => setAuthor('logan')}>L</AuthorButton>
                 <AuthorButton active={author === 'andy'} label="Andy's descriptions" onClick={() => setAuthor('andy')}>A</AuthorButton>
+                <AuthorButton active={author === 'logan'} label="Logan's descriptions" onClick={() => setAuthor('logan')}>L</AuthorButton>
               </div>
             )}
           </div>
           {hasAuthors && (
             <p className="text-sm text-muted-foreground" aria-live="polite">
-              Descriptions by <span className="font-medium text-foreground">{author === 'logan' ? 'Logan' : 'Andy'}</span>.
-              Switch to {author === 'logan' ? "Andy's" : "Logan's"} with the L/A toggle.
+              Analysis by <span className="font-medium text-foreground">{author === 'logan' ? 'Logan' : 'Andy'}</span>.
+              Switch to {author === 'logan' ? "Andy's" : "Logan's"} with the A/L toggle.
             </p>
           )}
         </div>
