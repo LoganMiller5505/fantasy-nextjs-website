@@ -18,7 +18,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 
 import {
   Table,
@@ -93,20 +92,48 @@ export function DataTable<TData extends RowData>({
     },
   })
 
+  // The player filter holds the players that are unchecked (hidden)
+  const playerColumn = table.getColumn("player")
+  const hiddenPlayers = (playerColumn?.getFilterValue() as string[]) ?? []
+  const players = React.useMemo(
+    () =>
+      [
+        ...new Set(
+          table.getCoreRowModel().rows.map((row) => String(row.getValue("player")))
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data]
+  )
+
   return (
     <div>
-        <div className="flex items-center py-4">
-        <Input
-          placeholder="Filter players..."
-          value={(table.getColumn("player")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("player")?.setFilterValue(event.target.value)
-          }
-          className="max-w-sm"
-        />
-        <div className="ml-auto flex gap-2">
+        <div className="grid grid-cols-2 gap-2 py-4 sm:flex sm:items-center">
+        <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="outline" />}>
+                Player Toggle
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+                {players.map((player) => (
+                    <DropdownMenuCheckboxItem
+                        key={player}
+                        checked={!hiddenPlayers.includes(player)}
+                        onCheckedChange={(value) =>
+                        playerColumn?.setFilterValue(
+                            value
+                            ? hiddenPlayers.filter((hidden) => hidden !== player)
+                            : [...hiddenPlayers, player]
+                        )
+                        }
+                    >
+                        {player}
+                    </DropdownMenuCheckboxItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="contents sm:ml-auto sm:flex sm:gap-2">
         {quickToggle && (
-            <Button variant="outline" onClick={toggleQuickColumns}>
+            <Button variant="outline" className="order-last col-span-2 sm:order-none" onClick={toggleQuickColumns}>
                 {quickToggleShown ? <EyeOffIcon /> : <EyeIcon />}
                 {quickToggleShown ? "Hide" : "Show"} {quickToggle.label}
             </Button>

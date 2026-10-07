@@ -10,7 +10,14 @@ import {
   sortFn_alphanumeric,
   sortFn_text,
   tableFeatures,
+  type FilterFn,
 } from "@tanstack/react-table"
+
+// Keeps rows whose value is not in the filter value (a list of hidden values).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const filterFn_excludes: FilterFn<any, any> = (row, columnId, filterValue: unknown[]) =>
+  !filterValue.includes(row.getValue(columnId))
+filterFn_excludes.autoRemove = (value?: unknown[]) => !value?.length
 
 // New in v9: declare the features this table uses — anything you don't
 // register is tree-shaken out of the bundle.
@@ -22,7 +29,7 @@ export const features = tableFeatures({
   filteredRowModel: createFilteredRowModel(),
   paginatedRowModel: createPaginatedRowModel(),
   sortedRowModel: createSortedRowModel(),
-  filterFns: { includesString: filterFn_includesString },
+  filterFns: { includesString: filterFn_includesString, excludes: filterFn_excludes },
   sortFns: { alphanumeric: sortFn_alphanumeric, text: sortFn_text },
 })
 

@@ -16,6 +16,7 @@ function matchupColumns(statColumns: string[]) {
     columnHelper.accessor("player", {
       header: ({ column }) => <SortableHeader column={column} title="Player" />,
       enableHiding: false,
+      filterFn: "excludes",
     }),
     ...statColumns.map((key) =>
       columnHelper.accessor(key, {
