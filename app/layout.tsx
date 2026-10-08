@@ -22,6 +22,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "The League Huddle",
   description: "Run It Up The Middle Enjoyers Fantasy Football League Huddle",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
