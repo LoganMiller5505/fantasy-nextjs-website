@@ -34,7 +34,7 @@ export default function AndrewsRecapsPage() {
             </nav>
 
             <div className="flex min-w-0 flex-1 flex-col gap-4">
-                {RECAPS.map(({ slug }, i) => (
+                {[...RECAPS].reverse().map(({ slug }, i) => (
                     <Fragment key={slug}>
                         {i > 0 && <Separator className="mx-auto max-w-3xl" />}
                         <Recap slug={slug} />
