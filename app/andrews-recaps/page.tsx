@@ -3,11 +3,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator"
 import Recap from "./recap";
 
-// Folders in public/andrew-recaps, newest first.
+// Folders in public/andrew-recaps, oldest first.
 const RECAPS = [
-    { slug: "4", title: "Week 4" },
-    { slug: "3", title: "Week 3" },
     { slug: "1-2", title: "Weeks 1 & 2" },
+    { slug: "3", title: "Week 3" },
+    { slug: "4", title: "Week 4" },
 ];
 
 export default function AndrewsRecapsPage() {
