@@ -5,7 +5,8 @@ import { type DataTableFeatures } from "./data-table-features"
 import { SortableHeader, sortFn_numeric } from "./columns"
 
 // One row of a source.matchups_<year> table. Head-to-head cells are records like "1-0"
-// (null if they haven't played). Win% is text in 2026 but a number in earlier years.
+// (null if they haven't played). Win% is text in 2026 but a number in earlier years;
+// Div Win% (2025 onward) is always text.
 export type MatchupRow = { player: string } & Record<string, string | number | null>
 
 const columnHelper = createColumnHelper<DataTableFeatures, MatchupRow>()
@@ -21,7 +22,7 @@ function matchupColumns(statColumns: string[]) {
     ...statColumns.map((key) =>
       columnHelper.accessor(key, {
         header: ({ column }) => <SortableHeader column={column} title={key} />,
-        ...(key === "Win%" && {
+        ...(key.endsWith("%") && {
           sortFn: sortFn_numeric,
           cell: ({ getValue }) => {
             const value = getValue()
@@ -34,13 +35,13 @@ function matchupColumns(statColumns: string[]) {
 }
 
 export const matchupColumns2026 = matchupColumns([
-  "Total", "Win%", "Div Total",
+  "Total", "Win%", "Div Total", "Div Win%",
   "Matt", "James", "Logan", "Robert", "Andy", "Max", "Andrew", "Landon",
   "Dillon", "Whieldon", "Ethan", "Brady",
 ])
 
 export const matchupColumns2025 = matchupColumns([
-  "Total", "Win%", "Div Total",
+  "Total", "Win%", "Div Total", "Div Win%",
   "Matt", "James", "Logan", "Robert", "Andy", "Max", "Nick", "Landon",
   "Dillon", "Whieldon", "Ethan", "Cali",
 ])
