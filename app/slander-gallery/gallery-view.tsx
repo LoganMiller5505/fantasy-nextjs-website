@@ -59,11 +59,11 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <HallOfFameToggle pressed={hallOfFame} onPressedChange={setHallOfFame} />
         <FacetFilter label="About" options={peopleOptions} selected={people} onChange={setPeople} />
         <FacetFilter label="Type" options={typeOptions} selected={types} onChange={setTypes} />
         <FacetFilter label="Creator" options={creatorOptions} selected={creators} onChange={setCreators} />
         <FacetFilter label="Year" options={yearOptions} selected={years} onChange={setYears} />
+        <HallOfFameToggle pressed={hallOfFame} onPressedChange={setHallOfFame} />
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear
