@@ -736,5 +736,15 @@ export const GALLERY: GalleryItem[] = [
     people: ['dillon', 'whieldon'],
     type: 'video',
     poster: '/slander-gallery/DillonCantBeatWhieldon.jpg',
-  }
+  },
+  {
+    kind: 'image',
+    src: '/slander-gallery/AndyLoganBus.png',
+    alt: '',
+    width: 4096, height: 3749,
+    creator: 'logan',
+    date: '2026-10-14',
+    people: ['andy', 'logan'],
+    type: 'meme',
+  },
 ]

@@ -14,6 +14,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except the login page and Next's build assets, including files in public/
-  matcher: ["/((?!login|_next/static|_next/image|favicon.ico).*)"],
+  // Everything except the login page, Next's build assets, and the public/ images rendered with next/image.
+  // The image optimizer fetches local images internally without the visitor's cookies, so gated images fail
+  // to optimize. Scoped to those folders so other routes can't skip auth just by ending in an image extension.
+  matcher: ["/((?!login|_next/static|_next/image|favicon.ico|(?:slander-gallery|logos)/[^/]+\\.(?:png|jpe?g|gif|webp|avif)$).*)"],
 }
