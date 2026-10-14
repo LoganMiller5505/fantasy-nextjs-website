@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import { cn } from "cn"
-import { PlayIcon } from "lucide-react"
+import { CrownIcon, PlayIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
@@ -105,6 +105,12 @@ export function GalleryPreview({ item, children }: { item: GalleryItem; children
       </div>
 
       <div className="flex flex-wrap gap-1.5">
+        {item.hallOfFame && (
+          <Badge className="bg-linear-to-b from-amber-300 to-amber-500 text-amber-950">
+            <CrownIcon className="fill-current" />
+            Hall of Fame
+          </Badge>
+        )}
         <Badge variant="outline" className="capitalize">{item.type}</Badge>
         {item.people.map((person) => (
           <Badge key={person} variant="secondary" className="capitalize">{person}</Badge>

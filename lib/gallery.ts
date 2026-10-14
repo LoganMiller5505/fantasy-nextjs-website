@@ -1,4 +1,4 @@
-type Base = { alt: string, width: number, height: number, creator?: string, date: string, people: string[], type: string }
+type Base = { alt: string, width: number, height: number, creator?: string, date: string, people: string[], type: string, hallOfFame?: boolean }
 export type GalleryItem = 
     | (Base & { kind: 'image', src: string })
     | (Base & { kind: 'video', src: string, poster: string })
@@ -58,6 +58,7 @@ export const GALLERY: GalleryItem[] = [
     date: '2024-09-10',
     people: ['nick', 'robert'],
     type: 'graphic',
+    hallOfFame: true,
   },
   {
     kind: 'image',
@@ -328,6 +329,7 @@ export const GALLERY: GalleryItem[] = [
     date: '2024-12-08',
     people: ['robert'],
     type: 'graphic',
+    hallOfFame: true,
   },
   {
     kind: 'image',
@@ -407,6 +409,7 @@ export const GALLERY: GalleryItem[] = [
     people: ['landon', 'robert', 'dillon', 'whieldon', 'cali', 'ethan', 'andy', 'matt'],
     type: 'video',
     poster: '/slander-gallery/FantasyWeekOneSlander.jpg',
+    hallOfFame: true,
   },
   {
     kind: 'image',
@@ -524,6 +527,7 @@ export const GALLERY: GalleryItem[] = [
     date: '2025-10-19',
     people: ['dillon', 'landon', 'matt', 'robert', 'andy', 'logan', 'james', 'whieldon', 'cali', 'ethan'],
     type: 'video',
+    hallOfFame: true,
   },
   {
     kind: 'video',
@@ -556,6 +560,7 @@ export const GALLERY: GalleryItem[] = [
     date: '2025-10-25',
     people: ['logan', 'matt', 'robert', 'andy', 'max', 'whieldon', 'dillon', 'ethan', 'james', 'nick', 'cali', 'landon'],
     type: 'graphic',
+    hallOfFame: true,
   },
   {
     kind: 'image',
@@ -607,6 +612,7 @@ export const GALLERY: GalleryItem[] = [
     date: '2025-12-11',
     people: ['landon'],
     type: 'video',
+    hallOfFame: true,
   },
   {
     kind: 'image',
@@ -743,7 +749,7 @@ export const GALLERY: GalleryItem[] = [
     alt: '',
     width: 4096, height: 3749,
     creator: 'logan',
-    date: '2026-10-14',
+    date: '2026-10-13',
     people: ['andy', 'logan'],
     type: 'meme',
   },

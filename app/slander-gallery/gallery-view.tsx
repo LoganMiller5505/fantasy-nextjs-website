@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import type { GalleryItem } from "@/lib/gallery"
 import { FacetFilter } from "./facet-filter"
+import { HallOfFameToggle } from "./hall-of-fame-toggle"
 import { GalleryPreview, GalleryTile } from "./gallery-tile"
 import { keyOf } from "@/lib/gallery"
 
@@ -17,6 +18,7 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
   const [types, setTypes] = useState<string[]>([])
   const [creators, setCreators] = useState<string[]>([])
   const [years, setYears] = useState<string[]>([])
+  const [hallOfFame, setHallOfFame] = useState(false)
   const [openIndex, setOpenIndex] = useState(0)
   const [previewOpen, setPreviewOpen] = useState(false)
 
@@ -27,18 +29,20 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
 
   // Within People: item must include every selected person. Type/Creator/Year: any selected. Across filters: AND.
   const visible = items
+    .filter((i) => !hallOfFame || i.hallOfFame)
     .filter((i) => people.length === 0 || people.every((p) => i.people.includes(p)))
     .filter((i) => types.length === 0 || types.includes(i.type))
     .filter((i) => creators.length === 0 || (i.creator !== undefined && creators.includes(i.creator)))
     .filter((i) => years.length === 0 || years.includes(i.date.slice(0, 4)))
     .toSorted((a, b) => b.date.localeCompare(a.date))
 
-  const hasFilters = people.length + types.length + creators.length + years.length > 0
+  const hasFilters = hallOfFame || people.length + types.length + creators.length + years.length > 0
   const clearFilters = () => {
     setPeople([])
     setTypes([])
     setCreators([])
     setYears([])
+    setHallOfFame(false)
   }
 
   // Step through the filtered list, wrapping around at either end
@@ -55,6 +59,7 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
+        <HallOfFameToggle pressed={hallOfFame} onPressedChange={setHallOfFame} />
         <FacetFilter label="About" options={peopleOptions} selected={people} onChange={setPeople} />
         <FacetFilter label="Type" options={typeOptions} selected={types} onChange={setTypes} />
         <FacetFilter label="Creator" options={creatorOptions} selected={creators} onChange={setCreators} />
