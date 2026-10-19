@@ -5,12 +5,13 @@ import { Suspense } from 'react'
 import { POWER_RANKINGS } from '@/lib/power-rankings'
 import { PowerRankingsFromUrl, PowerRankingsView } from './_components/power_rankings'
 import Link from "next/link";
-import { ChartColumn, ChartLine, Flame, NotebookPen } from "lucide-react";
+import { ChartColumn, ChartLine, Flame, Megaphone, NotebookPen } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const sections = [
   { href: "/weekly-replays", title: "Weekly Replays", description: "Graphed playback for each matchup", icon: ChartLine },
   { href: "/andrews-recaps", title: "Andrew's Recaps", description: "Hand-written weekly summaries", icon: NotebookPen },
+  { href: "/andy-schefter", title: "Andy Schefter", description: "Breaking news from the league's top insider", icon: Megaphone },
   { href: "/statistics", title: "Statistics", description: "All-time matchups and head-to-heads", icon: ChartColumn },
   { href: "/slander-gallery", title: "Slander Gallery", description: "A compilation of all league slander", icon: Flame },
 ]
@@ -28,7 +29,7 @@ export default async function Page() {
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {sections.map(({ href, title, description, icon: Icon }) => (
           <Link key={href} href={href} className="group rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             <Card className="h-full transition-colors group-hover:bg-muted/50">

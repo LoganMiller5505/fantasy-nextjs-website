@@ -13,6 +13,7 @@ const SITE_NAME = "The League Huddle";
 const links = [
     { href: "/weekly-replays", label: "Weekly Replays" },
     { href: "/andrews-recaps", label: "Andrew's Recaps" },
+    { href: "/andy-schefter", label: "Andy Schefter" },
     { href: "/statistics", label: "Statistics" },
     { href: "/slander-gallery", label: "Slander Gallery" },
 ];
