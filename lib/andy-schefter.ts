@@ -18,7 +18,7 @@ export const PROFILE = {
   name: 'Andy Schefter',
   handle: 'AndySchefter',
   avatar: '/andy-schefter/pfp.png',
-  banner: undefined as string | undefined, // e.g. '/andy-schefter/banner.jpg' (3:1 works best)
+  banner: '/andy-schefter/banner.jpg' as string | undefined, // shown at 3:1, cropped to fit
   bio: 'ESPLogaN Senior Fantasy Insider. The first to know Run It Up The Middle Enjoyers League news.',
   location: 'Auburn, AL',
   website: 'thehuddle.lmiller.io/andy-schefter',
@@ -27,6 +27,15 @@ export const PROFILE = {
 }
 
 export const TWEETS: Tweet[] = [
+  {
+    id: '2026-10-19-robert-trade',
+    date: '2026-10-19T13:32',
+    text: 'GM Robert Haas is reportedly working on a trade package that would involve RB Omarion Hampton, WR CeeDee Lamb, WR Mike Evans, and others to a potential buyer, per sources.',
+    replies: 2_426,
+    retweets: 6_870,
+    likes: 42_600,
+    views: 3_870_000,
+  },
   {
     id: '2026-10-15-robert-fraud',
     date: '2026-10-15T19:03',
