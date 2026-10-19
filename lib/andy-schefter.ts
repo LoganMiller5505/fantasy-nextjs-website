@@ -42,7 +42,10 @@ export const TWEETS: Tweet[] = [
   {
     id: '2026-10-19-robert-fraud',
     date: '2026-10-15T19:03',
-    text: '"The one certainty is that Omarion Hampton’s time with Come Cee Whats in my Basement is done.” GM Robert Haas feels comfortable enough to know he can and will trade Hampton, which is why he’ll be inactive Sunday. But no Hampton trade will be completed until after Sunday’s games are played.',
+    text: '"The one certainty is that Omarion Hampton’s time with Come Cee Whats in my Basement is done.” GM Robert Haas feels comfortable enough to know he can and will trade Hampton, which is why he’ll be inactive Sunday. But no Hampton trade will be completed until after Sunday’s games are played. (Photo Credit: @LoganMiller) ',
+    images: [
+      { src: '/slander-gallery/RobertLosing.png', alt: 'Robert Losing', width: 2316, height: 2895 },
+    ],
     replies: 1_024,
     retweets: 4_870,
     likes: 31_600,
