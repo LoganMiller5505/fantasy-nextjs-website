@@ -108,7 +108,7 @@ export function SimpleTable({
         <TableHeader>
           <TableRow>
             {head.map((h, i) => (
-              <TableHead key={h} className={align?.[i] === "right" ? "text-right" : undefined}>
+              <TableHead key={i} className={align?.[i] === "right" ? "text-right" : undefined}>
                 {h}
               </TableHead>
             ))}
@@ -281,3 +281,95 @@ export function Legend({
     </div>
   )
 }
+
+// Heat tables tint each cell by a value t in [0, 1]: 0 is the card surface, 1 the full series colour.
+// Blue alone is sequential; blue and red together are the two arms of a diverging scale.
+const TONES = {
+  blue: "[--heat:#2a78d6] dark:[--heat:#3987e5]",
+  red: "[--heat:#e34948] dark:[--heat:#e66767]",
+} as const
+
+export type HeatValue = {
+  text: React.ReactNode
+  t: number | null // null: no colour (a diagonal, a bye, no games)
+  tone?: keyof typeof TONES
+  title?: string
+  onClick?: () => void
+  outlined?: boolean
+}
+
+export function HeatTable({
+  corner = "",
+  columns,
+  rows,
+  highlight,
+}: {
+  corner?: string
+  columns: React.ReactNode[]
+  rows: { key: string; label: React.ReactNode; cells: HeatValue[] }[]
+  highlight?: (key: string) => boolean
+}) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full border-separate border-spacing-0.5 p-1 text-xs tabular-nums">
+        <thead>
+          <tr>
+            <th className="text-muted-foreground px-2 py-1 text-left font-medium">{corner}</th>
+            {columns.map((c, i) => (
+              <th key={i} className="text-muted-foreground px-1 py-1 text-center font-medium whitespace-nowrap">
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <th
+                scope="row"
+                className={cn(
+                  "px-2 py-1 text-left font-normal whitespace-nowrap",
+                  highlight?.(row.key) && "bg-muted rounded-[4px] font-semibold"
+                )}
+              >
+                {row.label}
+              </th>
+              {row.cells.map((cell, i) => {
+                const Tag = cell.onClick ? "button" : "div"
+                return (
+                  <td key={i} className="p-0">
+                    <Tag
+                      type={cell.onClick ? "button" : undefined}
+                      title={cell.title}
+                      onClick={cell.onClick}
+                      className={cn(
+                        "flex h-7 w-full min-w-11 items-center justify-center rounded-[4px] px-1.5",
+                        TONES[cell.tone ?? "blue"],
+                        cell.t == null ? "text-muted-foreground bg-muted/40" : cell.t > 0.55 && "text-white",
+                        cell.outlined && "ring-foreground/60 ring-1 ring-inset",
+                        cell.onClick && "focus-visible:ring-ring cursor-pointer hover:ring-2 hover:ring-foreground/40 focus-visible:ring-2 focus-visible:outline-none"
+                      )}
+                      style={
+                        cell.t == null
+                          ? undefined
+                          : { backgroundColor: `color-mix(in oklab, var(--heat) ${Math.round(6 + cell.t * 84)}%, var(--card))` }
+                      }
+                    >
+                      {cell.text}
+                    </Tag>
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// A diverging cell value: positive leans blue, negative red, with `limit` as full strength
+export const diverging = (x: number, limit: number): Pick<HeatValue, "t" | "tone"> => ({
+  t: Math.min(Math.abs(x) / (limit || 1), 1),
+  tone: x >= 0 ? "blue" : "red",
+})

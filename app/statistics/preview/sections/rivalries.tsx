@@ -3,20 +3,25 @@
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { rivalry, type Side, type closestRivalries } from "../stats"
+import { rivalry, type Side, type closestRivalries, type nemeses } from "../stats"
 import { Controls, Legend, Panel, Picker, SERIES, SimpleTable, StatTile, fmt } from "../ui"
+import { usePreview } from "./preview-tabs"
 
 export function Rivalries({
   sides,
   managers,
   closest,
+  foes,
 }: {
   sides: Side[]
   managers: string[]
   closest: ReturnType<typeof closestRivalries>
+  foes: ReturnType<typeof nemeses>
 }) {
-  const [a, setA] = React.useState("Logan")
-  const [b, setB] = React.useState("Andy")
+  // The pair lives in the shared preview state, so the head-to-head grid can open a rivalry here
+  const { rivalry: [a, b], setRivalry } = usePreview()
+  const setA = (m: string) => setRivalry([m, b])
+  const setB = (m: string) => setRivalry([a, m])
   const series = React.useMemo(() => rivalry(sides, a, b), [sides, a, b])
   const config = {
     margin: { label: "Margin" },
@@ -98,13 +103,40 @@ export function Rivalries({
         </>
       )}
 
-      <Panel title="Closest rivalries" description="All-time pairs with 3+ meetings: tied series first, then the smallest average margin.">
-        <SimpleTable
-          head={["Pair", "Meetings", "Series", "Avg margin"]}
-          align={["left", "right", "left", "right"]}
-          rows={closest.map((r) => [r.pair, r.games, r.series, fmt(r.avgMargin, 1)])}
-        />
-      </Panel>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Closest rivalries" description="All-time pairs with 3+ meetings: tied series first, then the smallest average margin.">
+          <SimpleTable
+            head={["Pair", "Meetings", "Series", "Avg margin"]}
+            align={["left", "right", "left", "right"]}
+            rows={closest.map((r) => [r.pair, r.games, r.series, fmt(r.avgMargin, 1)])}
+          />
+        </Panel>
+        <Panel
+          title="Nemesis and favourite victim"
+          description="Each manager's worst losing and best winning record against one opponent, all-time, with 2+ meetings. Click a name to open that rivalry."
+        >
+          <SimpleTable
+            head={["Manager", "Nemesis", "Record", "Favourite victim", "Record"]}
+            align={["left", "left", "right", "left", "right"]}
+            highlight={(i) => foes[i].manager === a}
+            rows={foes.map((f) => [
+              f.manager,
+              f.nemesis ? (
+                <button key="n" type="button" className="underline-offset-2 hover:underline" onClick={() => setRivalry([f.manager, f.nemesis!.opponent])}>
+                  {f.nemesis.opponent}
+                </button>
+              ) : "—",
+              f.nemesis?.record ?? "",
+              f.victim ? (
+                <button key="v" type="button" className="underline-offset-2 hover:underline" onClick={() => setRivalry([f.manager, f.victim!.opponent])}>
+                  {f.victim.opponent}
+                </button>
+              ) : "—",
+              f.victim?.record ?? "",
+            ])}
+          />
+        </Panel>
+      </div>
     </div>
   )
 }

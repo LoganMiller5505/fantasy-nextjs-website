@@ -1,6 +1,6 @@
 "use client"
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { createColumnHelper } from "@tanstack/react-table"
 import {
   ChartContainer,
@@ -13,7 +13,7 @@ import {
 import { DataTable } from "../../data-table"
 import { SortableHeader, sortFn_numeric } from "../../columns"
 import { type DataTableFeatures } from "../../data-table-features"
-import type { ScoringRow } from "../stats"
+import type { ScoringRow, scoringTrend } from "../stats"
 import { Panel, SERIES } from "../ui"
 
 const columnHelper = createColumnHelper<DataTableFeatures, ScoringRow>()
@@ -46,7 +46,20 @@ const config = {
   papg: { label: "Points against / game", theme: SERIES.orange },
 } satisfies ChartConfig
 
-export function Scoring({ rows }: { rows: ScoringRow[] }) {
+// Seasons take categorical slots in order, oldest first, so a season keeps its colour
+const SEASON_COLORS = [SERIES.blue, SERIES.orange, SERIES.aqua]
+
+export function Scoring({
+  rows,
+  trend,
+}: {
+  rows: ScoringRow[]
+  trend: ReturnType<typeof scoringTrend>
+}) {
+  const trendConfig = Object.fromEntries(
+    trend.years.map((y, i) => [y, { label: y, theme: SEASON_COLORS[i % SEASON_COLORS.length] }])
+  ) satisfies ChartConfig
+
   const perGame = [...rows]
     .sort((a, b) => b.PPG - a.PPG)
     .map((r) => ({ manager: r.player, ppg: r.PPG, papg: r["PA/G"] }))
@@ -70,6 +83,23 @@ export function Scoring({ rows }: { rows: ScoringRow[] }) {
             <Bar dataKey="ppg" fill="var(--color-ppg)" radius={[0, 4, 4, 0]} />
             <Bar dataKey="papg" fill="var(--color-papg)" radius={[0, 4, 4, 0]} />
           </BarChart>
+        </ChartContainer>
+      </Panel>
+      <Panel
+        title="League scoring by week"
+        description="Average score across the league each week, one line per season. Double weeks are left out, so 2024's playoff rounds don't appear."
+      >
+        <ChartContainer config={trendConfig} className="aspect-auto h-72 w-full">
+          <LineChart data={trend.data} margin={{ top: 8, right: 12, left: -12 }}>
+            <CartesianGrid vertical={false} />
+            <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} />
+            <YAxis tickLine={false} axisLine={false} domain={["auto", "auto"]} allowDecimals={false} width={48} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartLegend content={<ChartLegendContent />} verticalAlign="top" itemSorter={null} />
+            {trend.years.map((y) => (
+              <Line key={y} dataKey={y} type="linear" stroke={`var(--color-${y})`} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+            ))}
+          </LineChart>
         </ChartContainer>
       </Panel>
     </div>

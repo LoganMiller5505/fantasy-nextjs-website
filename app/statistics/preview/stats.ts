@@ -22,15 +22,15 @@ export type Side = {
 }
 
 export const record = (w: number, l: number) => `${w}-${l}`
-const pct = (w: number, l: number) => (w + l ? w / (w + l) : 0)
-const round = (x: number, places = 2) => Math.round(x * 10 ** places) / 10 ** places
-const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0)
-const median = (xs: number[]) => {
+export const pct = (w: number, l: number) => (w + l ? w / (w + l) : 0)
+export const round = (x: number, places = 2) => Math.round(x * 10 ** places) / 10 ** places
+export const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0)
+export const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b)
   const mid = s.length / 2
   return s.length % 2 ? s[Math.floor(mid)] : (s[mid - 1] + s[mid]) / 2
 }
-const groupBy = <T, K>(xs: T[], key: (x: T) => K) => {
+export const groupBy = <T, K>(xs: T[], key: (x: T) => K) => {
   const map = new Map<K, T[]>()
   for (const x of xs) map.set(key(x), [...(map.get(key(x)) ?? []), x])
   return map
@@ -83,13 +83,29 @@ export function playedSides(league: League): Side[] {
 }
 
 // Regular season, wins then points for.
-function standings(sides: Side[]) {
+export function standings(sides: Side[]) {
   return [...groupBy(sides.filter((s) => !s.playoff), (s) => s.manager)]
     .map(([manager, mine]) => {
       const wins = mine.filter((s) => s.win).length
       return { manager, wins, losses: mine.length - wins, pf: round(sum(mine.map((s) => s.pf))), pa: round(sum(mine.map((s) => s.pa))) }
     })
     .sort((a, b) => b.wins - a.wins || b.pf - a.pf)
+}
+
+// Playoff seeding: division winners (best record, then points for) take the top seeds, ordered by
+// record then points for; everyone else follows by record, then points for. A season without
+// divisions is seeded by record alone.
+export function playoffSeeds(table: ReturnType<typeof standings>, division: (manager: string) => Division | null) {
+  const winners = new Set<string>()
+  const decided = new Set<Division>()
+  for (const { manager } of table) {
+    const d = division(manager)
+    if (d && !decided.has(d)) {
+      decided.add(d)
+      winners.add(manager)
+    }
+  }
+  return [...table.filter((r) => winners.has(r.manager)), ...table.filter((r) => !winners.has(r.manager))].map((r) => r.manager)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -158,7 +174,9 @@ export function seasonResults(league: League, sides: Side[]): SeasonResult[] {
       .map((w) => w.week_no)
       .sort((a, b) => a - b)
     const finalPlayed = playoffWeeks.length > 0 && season.some((s) => s.week_no === playoffWeeks.at(-1))
-    const bracket = finalPlayed ? championshipBracket(season, table.map((r) => r.manager), playoffWeeks) : null
+    const division = new Map(league.teams.filter((t) => t.year === year).map((t) => [t.manager, t.division]))
+    const seeds = playoffSeeds(table, (m) => division.get(m) ?? null)
+    const bracket = finalPlayed ? championshipBracket(season, seeds, playoffWeeks) : null
     return {
       year,
       inProgress: !finalPlayed,
@@ -235,6 +253,41 @@ export function scoringRows(sides: Side[], results: SeasonResult[]): ScoringRow[
   })
 }
 
+// League average score each week, one series per season: { week: "W1", "2024": 101.2, ... }.
+// Double weeks are left out, so 2024's playoff weeks don't appear.
+export function scoringTrend(sides: Side[]) {
+  const single = sides.filter((s) => !s.double)
+  const years = [...new Set(single.map((s) => s.year))].sort((a, b) => a - b)
+  const order = (short: string) => (short[0] === "P" ? 100 : 0) + Number(short.slice(1))
+  const weeks = [...new Set(single.map((s) => s.short))].sort((a, b) => order(a) - order(b))
+  const data = weeks.map((week) => ({
+    week,
+    ...Object.fromEntries(
+      years.flatMap((y) => {
+        const pfs = single.filter((s) => s.year === y && s.short === week).map((s) => s.pf)
+        return pfs.length ? [[String(y), round(sum(pfs) / pfs.length, 1)]] : []
+      })
+    ),
+  }))
+  return { years: years.map(String), data }
+}
+
+// Regular-season PPG against playoff-week PPG, consolation games included. A double week counts
+// as two weeks, so its points are halved rather than the game being dropped (2024's playoffs were
+// all double weeks).
+export function playoffRisers(sides: Side[]) {
+  return [...groupBy(sides, (s) => s.manager)]
+    .flatMap(([manager, mine]) => {
+      const reg = mine.filter((s) => !s.playoff && !s.double)
+      const post = mine.filter((s) => s.playoff)
+      if (!reg.length || !post.length) return []
+      const regular = round(sum(reg.map((s) => s.pf)) / reg.length, 1)
+      const playoffs = round(sum(post.map((s) => (s.double ? s.pf / 2 : s.pf))) / post.length, 1)
+      return [{ manager, regular, playoffs, change: round(playoffs - regular, 1), weeks: post.length }]
+    })
+    .sort((a, b) => b.change - a.change)
+}
+
 // ---------------------------------------------------------------------------------------------
 // Season story
 
@@ -247,6 +300,8 @@ export type SeasonStory = {
   weeklyScores: Record<string, string | number>[] // { week: "W1", median: 104.2, Logan: 98.1, ... }
   weekLabels: string[]
   standings: { manager: string; wins: number; losses: number; pf: number; pa: number; results: WeekResult[] }[]
+  halves: { manager: string; first: number | null; second: number | null; change: number | null }[]
+  awards: { week: string; top: string; topPf: number; low: string; lowPf: number; blowout: string; margin: number }[]
 }
 
 export function seasonStory(league: League, sides: Side[], year: number): SeasonStory {
@@ -272,11 +327,43 @@ export function seasonStory(league: League, sides: Side[], year: number): Season
     }
   })
   const table = standings(season)
+
+  // Regular season split at its midpoint; an in-progress season has no second half yet
+  const regularWeeks = weeks.filter((w) => !w.is_playoff).length
+  const ppg = (xs: Side[]) => (xs.length ? round(sum(xs.map((s) => s.pf)) / xs.length, 1) : null)
+  const halves = managers
+    .map((manager) => {
+      const mine = season.filter((s) => s.manager === manager && !s.playoff && !s.double)
+      const first = ppg(mine.filter((s) => s.week_no <= regularWeeks / 2))
+      const second = ppg(mine.filter((s) => s.week_no > regularWeeks / 2))
+      return { manager, first, second, change: first != null && second != null ? round(second - first, 1) : null }
+    })
+    .sort((a, b) => (b.change ?? -Infinity) - (a.change ?? -Infinity) || (b.first ?? 0) - (a.first ?? 0))
+
+  const awards = weeks.flatMap((w) => {
+    const thisWeek = season.filter((s) => s.week_no === w.week_no)
+    if (!thisWeek.length) return []
+    const top = thisWeek.reduce((a, b) => (b.pf > a.pf ? b : a))
+    const low = thisWeek.reduce((a, b) => (b.pf < a.pf ? b : a))
+    const blowout = thisWeek.filter((s) => s.win).reduce((a, b) => (b.pf - b.pa > a.pf - a.pa ? b : a))
+    return [{
+      week: w.is_double_week ? `${x(w)} (double)` : x(w),
+      top: top.manager,
+      topPf: top.pf,
+      low: low.manager,
+      lowPf: low.pf,
+      blowout: `${blowout.manager} over ${blowout.opponent}`,
+      margin: round(blowout.pf - blowout.pa),
+    }]
+  })
+
   return {
     year,
     managers,
     cumulative,
     weeklyScores,
+    halves,
+    awards,
     weekLabels: weeks.map((w) => w.label),
     standings: table.map((row) => ({
       ...row,
@@ -306,18 +393,24 @@ export type LuckRow = {
   Median: string
   "Top weeks": number
   "Bottom weeks": number
+  "Lucky W": number // won while scoring below the week's median
+  "Unlucky L": number // lost while scoring above it
+  Close: string // record in games decided by under 5 points
 }
+
+export const CLOSE_GAME = 5
 
 export function luckRows(sides: Side[], year: number | "all"): LuckRow[] {
   const pool = sides.filter((s) => !s.playoff && !s.double && (year === "all" || s.year === year))
-  const stats = new Map<string, { w: number; apW: number; apL: number; exp: number; medW: number; top: number; bottom: number; gp: number }>()
+  type Tally = { w: number; apW: number; apL: number; exp: number; medW: number; top: number; bottom: number; gp: number; lucky: number; unlucky: number; closeW: number; closeL: number }
+  const stats = new Map<string, Tally>()
   for (const [, week] of groupBy(pool, (s) => `${s.year}|${s.week_no}`)) {
     const scores = week.map((s) => s.pf)
     const mid = median(scores)
     const hi = Math.max(...scores)
     const lo = Math.min(...scores)
     for (const s of week) {
-      const row = stats.get(s.manager) ?? { w: 0, apW: 0, apL: 0, exp: 0, medW: 0, top: 0, bottom: 0, gp: 0 }
+      const row = stats.get(s.manager) ?? { w: 0, apW: 0, apL: 0, exp: 0, medW: 0, top: 0, bottom: 0, gp: 0, lucky: 0, unlucky: 0, closeW: 0, closeL: 0 }
       stats.set(s.manager, row)
       const beat = scores.filter((x) => x < s.pf).length
       row.gp++
@@ -328,6 +421,9 @@ export function luckRows(sides: Side[], year: number | "all"): LuckRow[] {
       row.medW += s.pf > mid ? 1 : 0
       row.top += s.pf === hi ? 1 : 0
       row.bottom += s.pf === lo ? 1 : 0
+      row.lucky += s.win && s.pf < mid ? 1 : 0
+      row.unlucky += !s.win && s.pf > mid ? 1 : 0
+      if (Math.abs(s.pf - s.pa) < CLOSE_GAME) row[s.win ? "closeW" : "closeL"]++
     }
   }
   return [...stats].map(([player, r]) => ({
@@ -340,6 +436,9 @@ export function luckRows(sides: Side[], year: number | "all"): LuckRow[] {
     Median: record(r.medW, r.gp - r.medW),
     "Top weeks": r.top,
     "Bottom weeks": r.bottom,
+    "Lucky W": r.lucky,
+    "Unlucky L": r.unlucky,
+    Close: record(r.closeW, r.closeL),
   }))
 }
 
@@ -360,6 +459,17 @@ export function recordBook(sides: Side[], activeManagers: string[]) {
   const byScore = [...single].sort((a, b) => b.pf - a.pf)
   const byMargin = [...winners].sort((a, b) => b.pf - b.pa - (a.pf - a.pa))
   const byCombined = [...winners].sort((a, b) => b.pf + b.pa - (a.pf + a.pa))
+  const losers = single.filter((s) => !s.win)
+  const highestLoss = losers.reduce((best, s) => (s.pf > best.pf ? s : best))
+  const lowestWin = winners.reduce((best, s) => (s.pf < best.pf ? s : best))
+
+  // Winning margins in 5-point bins: "0–5", "5–10", ...
+  const binSize = 5
+  const margins = winners.map((s) => s.pf - s.pa)
+  const marginBins = Array.from({ length: Math.floor(Math.max(...margins) / binSize) + 1 }, (_, i) => ({
+    bin: `${i * binSize}–${(i + 1) * binSize}`,
+    games: margins.filter((m) => Math.floor(m / binSize) === i).length,
+  }))
 
   // Streaks run across seasons and include playoffs
   const longest: Streak[] = []
@@ -393,6 +503,11 @@ export function recordBook(sides: Side[], activeManagers: string[]) {
     longestLoss: top("L")[0],
     topScores: byScore.slice(0, 10).map(line),
     topBlowouts: byMargin.slice(0, 10).map(line),
+    highestLoss: line(highestLoss),
+    lowestWin: line(lowestWin),
+    marginBins,
+    // Double weeks get their own list, since they're left out of every other one
+    doubleWeeks: sides.filter((s) => s.double).sort((a, b) => b.pf - a.pf).slice(0, 10).map(line),
     currentStreaks: current.sort((a, b) => (b.kind === "W" ? b.length : -b.length) - (a.kind === "W" ? a.length : -a.length)),
   }
 }
@@ -443,6 +558,24 @@ export function closestRivalries(sides: Side[], minGames = 3) {
     .slice(0, 10)
 }
 
+// Each manager's worst losing and best winning head-to-head record against one opponent,
+// all-time. Ties go to the opponent played most.
+export function nemeses(sides: Side[], minGames = 2) {
+  return [...groupBy(sides, (s) => s.manager)]
+    .map(([manager, mine]) => {
+      const opponents = [...groupBy(mine, (s) => s.opponent)]
+        .filter(([, games]) => games.length >= minGames)
+        .map(([opponent, games]) => {
+          const w = games.filter((s) => s.win).length
+          return { opponent, record: record(w, games.length - w), pct: pct(w, games.length - w), games: games.length }
+        })
+      const nemesis = opponents.filter((o) => o.pct < 0.5).sort((a, b) => a.pct - b.pct || b.games - a.games)[0]
+      const victim = opponents.filter((o) => o.pct > 0.5).sort((a, b) => b.pct - a.pct || b.games - a.games)[0]
+      return { manager, nemesis: nemesis ?? null, victim: victim ?? null }
+    })
+    .sort((a, b) => a.manager.localeCompare(b.manager))
+}
+
 // ---------------------------------------------------------------------------------------------
 // Divisions
 
@@ -479,6 +612,27 @@ export function divisions(league: League, sides: Side[], year: number) {
     return { division, pct: round(pct(w, games.length - w) * 100, 1), record: record(w, games.length - w) }
   })
   return { names, tables, matrix, interPct }
+}
+
+// Every season with divisions: each division's win % against the others, and its PPG.
+export function divisionStrength(league: League, sides: Side[]) {
+  const years = seasonsOf(league).sort((a, b) => a - b)
+  const names = [...new Set(league.teams.map((t) => t.division).filter((d): d is Division => d != null))].sort()
+  const seasons = years.flatMap((year) => {
+    const season = sides.filter((s) => s.year === year && !s.playoff && s.division != null)
+    if (!season.length) return []
+    const winPct: Record<string, string | number> = { season: String(year) }
+    const ppg: Record<string, string | number> = { season: String(year) }
+    for (const d of names) {
+      const inter = season.filter((s) => s.division === d && s.oppDivision !== d)
+      const w = inter.filter((s) => s.win).length
+      winPct[d] = round(pct(w, inter.length - w) * 100, 1)
+      const single = season.filter((s) => s.division === d && !s.double)
+      ppg[d] = round(sum(single.map((s) => s.pf)) / single.length, 1)
+    }
+    return [{ winPct, ppg }]
+  })
+  return { names, winPct: seasons.map((s) => s.winPct), ppg: seasons.map((s) => s.ppg) }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -520,8 +674,13 @@ export function powerRankings(league: League, sides: Side[]) {
     }))
   }
 
+  const consensusBy = new Map(weeks.map((w) => [w, consensus(w)]))
   const latest = weeks[weeks.length - 1]
-  const c = consensus(latest)
+  const c = consensusBy.get(latest)!
+  // Where each manager actually stood after the latest ballot's week: wins, then points for
+  const standing = new Map(
+    standings(sides.filter((s) => s.year === year && s.week_no <= latest)).map((r, i) => [r.manager, i + 1])
+  )
   const latestTable = managers
     .map((m) => {
       const ranks = rankers.map((r) => rankOf(latest, r, m))
@@ -535,6 +694,7 @@ export function powerRankings(league: League, sides: Side[]) {
         consensus: c[m].rank,
         spread: Math.max(...ranks) - Math.min(...ranks),
         record: record(w, mine.length - w),
+        standing: standing.get(m)!,
       }
     })
     .sort((a, b) => a.consensus - b.consensus)
@@ -552,7 +712,44 @@ export function powerRankings(league: League, sides: Side[]) {
     return { ranker, pct: round((right / (total || 1)) * 100, 1), right, total }
   })
 
-  return { year, weeks: weeks.map((w) => `W${w}`), latest: `Week ${latest}`, managers, series, latestTable, accuracy }
+  // How many spots higher (positive) or lower each ranker puts a manager than the consensus does,
+  // averaged over every ballot
+  const bias = managers.map((m) => ({
+    manager: m,
+    ...Object.fromEntries(
+      rankers.map((r) => [
+        r,
+        round(sum(weeks.map((w) => consensusBy.get(w)![m].rank - rankOf(w, r, m))) / weeks.length, 1),
+      ])
+    ),
+  })) as ({ manager: string } & Record<Ranker, number>)[]
+
+  // Consensus moves from one ballot to the next; positive is up the rankings
+  const moves = weeks.slice(1).flatMap((w, i) =>
+    managers.map((m) => ({
+      manager: m,
+      week: `W${weeks[i]} → W${w}`,
+      from: consensusBy.get(weeks[i])![m].rank,
+      to: consensusBy.get(w)![m].rank,
+      change: consensusBy.get(weeks[i])![m].rank - consensusBy.get(w)![m].rank,
+    }))
+  )
+  const risers = [...moves].filter((x) => x.change > 0).sort((a, b) => b.change - a.change).slice(0, 5)
+  const fallers = [...moves].filter((x) => x.change < 0).sort((a, b) => a.change - b.change).slice(0, 5)
+
+  return {
+    year,
+    weeks: weeks.map((w) => `W${w}`),
+    latest: `Week ${latest}`,
+    managers,
+    rankers,
+    series,
+    latestTable,
+    accuracy,
+    bias,
+    risers,
+    fallers,
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -643,5 +840,20 @@ export function careers(league: League, sides: Side[], results: SeasonResult[]) 
     ),
   }))
 
-  return { years, managers, rows, winPctBySeason }
+  // PPG within each season as a percentile (100 = the season's best), so 10- and 12-team seasons
+  // compare fairly. Double weeks are left out.
+  const ppgPercentile = new Map<string, Record<number, { pct: number; ppg: number; rank: number; of: number }>>()
+  for (const y of years) {
+    const season = sides.filter((s) => s.year === y && !s.double)
+    const table = [...groupBy(season, (s) => s.manager)]
+      .map(([m, mine]) => ({ m, ppg: round(sum(mine.map((s) => s.pf)) / mine.length, 1) }))
+      .sort((a, b) => b.ppg - a.ppg)
+    table.forEach(({ m, ppg }, i) => {
+      const row = ppgPercentile.get(m) ?? {}
+      row[y] = { pct: Math.round(((table.length - 1 - i) / (table.length - 1)) * 100), ppg, rank: i + 1, of: table.length }
+      ppgPercentile.set(m, row)
+    })
+  }
+
+  return { years, managers, rows, winPctBySeason, ppgPercentile: Object.fromEntries(ppgPercentile) }
 }

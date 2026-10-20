@@ -69,6 +69,36 @@ export function SeasonStory({ stories }: { stories: Record<number, Story> }) {
           />
         </Panel>
       </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel
+          title="Strong finish?"
+          description="Regular-season PPG in each half of the season. The second half fills in as the season goes."
+        >
+          <SimpleTable
+            head={["Manager", "1st half", "2nd half", "Change"]}
+            align={["left", "right", "right", "right"]}
+            highlight={(i) => story.halves[i].manager === highlighted}
+            rows={story.halves.map((r) => [
+              r.manager,
+              r.first == null ? "—" : fmt(r.first, 1),
+              r.second == null ? "—" : fmt(r.second, 1),
+              r.change == null ? "—" : `${r.change > 0 ? "+" : ""}${fmt(r.change, 1)}`,
+            ])}
+          />
+        </Panel>
+        <Panel title="Weekly awards" description="Top score, low score and biggest win each week, playoffs and consolation games included.">
+          <SimpleTable
+            head={["Week", "Top score", "Low score", "Biggest win"]}
+            align={["left", "left", "left", "left"]}
+            rows={story.awards.map((a) => [
+              a.week,
+              `${a.top} ${fmt(a.topPf, 1)}`,
+              `${a.low} ${fmt(a.lowPf, 1)}`,
+              `${a.blowout} (+${fmt(a.margin, 1)})`,
+            ])}
+          />
+        </Panel>
+      </div>
       <Panel title="Standings" description="Regular-season record and points; every week of the season as W / L, playoffs and consolation games included. – is a bye, · is still to play.">
         <SimpleTable
           head={["#", "Manager", "W-L", "PF", "PA", "Weeks"]}

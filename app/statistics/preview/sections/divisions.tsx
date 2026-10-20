@@ -2,15 +2,50 @@
 
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import type { divisions } from "../stats"
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
+import type { divisionStrength, divisions } from "../stats"
 import { Controls, Panel, Picker, SERIES, SimpleTable, fmt } from "../ui"
 
 type Divisions = ReturnType<typeof divisions>
 
 const config = { pct: { label: "Win % outside the division", theme: SERIES.blue } } satisfies ChartConfig
+// Divisions take categorical slots in alphabetical order, so each keeps its colour across charts
+const DIVISION_COLORS = [SERIES.blue, SERIES.orange, SERIES.aqua]
 
-export function DivisionsView({ bySeason }: { bySeason: Record<number, Divisions> }) {
+function StrengthChart({ names, data, unit, zeroTo }: { names: string[]; data: Record<string, string | number>[]; unit?: string; zeroTo?: number }) {
+  const strengthConfig = Object.fromEntries(
+    names.map((n, i) => [n, { label: n, theme: DIVISION_COLORS[i % DIVISION_COLORS.length] }])
+  ) satisfies ChartConfig
+  return (
+    <ChartContainer config={strengthConfig} className="aspect-auto h-56 w-full">
+      <BarChart data={data} margin={{ top: 8, right: 8, left: -16 }} barGap={2}>
+        <CartesianGrid vertical={false} />
+        <XAxis dataKey="season" tickLine={false} axisLine={false} tickMargin={8} />
+        <YAxis tickLine={false} axisLine={false} domain={[0, zeroTo ?? "auto"]} unit={unit} />
+        <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+        <ChartLegend content={<ChartLegendContent />} verticalAlign="top" itemSorter={null} />
+        {names.map((n) => (
+          <Bar key={n} dataKey={n} fill={`var(--color-${n})`} radius={[4, 4, 0, 0]} maxBarSize={40} />
+        ))}
+      </BarChart>
+    </ChartContainer>
+  )
+}
+
+export function DivisionsView({
+  bySeason,
+  strength,
+}: {
+  bySeason: Record<number, Divisions>
+  strength: ReturnType<typeof divisionStrength>
+}) {
   const years = Object.keys(bySeason).map(Number).sort((a, b) => b - a)
   const [year, setYear] = React.useState(years[0])
   const data = bySeason[year]
@@ -66,6 +101,16 @@ export function DivisionsView({ bySeason }: { bySeason: Record<number, Divisions
             </Panel>
           </div>
         </>
+      )}
+      {strength.winPct.length > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panel title="Division strength by season" description="Each division's regular-season win % against the other divisions.">
+            <StrengthChart names={strength.names} data={strength.winPct} unit="%" zeroTo={100} />
+          </Panel>
+          <Panel title="Division scoring by season" description="Average weekly score of each division's managers, regular season.">
+            <StrengthChart names={strength.names} data={strength.ppg} />
+          </Panel>
+        </div>
       )}
     </div>
   )

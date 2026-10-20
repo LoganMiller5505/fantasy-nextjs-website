@@ -4,7 +4,7 @@ import * as React from "react"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import type { RankSource, powerRankings } from "../stats"
-import { Controls, HighlightLines, Legend, PICK_HINT, Panel, Picker, SERIES, SimpleTable } from "../ui"
+import { Controls, HeatTable, HighlightLines, Legend, PICK_HINT, Panel, Picker, SERIES, SimpleTable, diverging } from "../ui"
 
 type Rankings = ReturnType<typeof powerRankings>
 
@@ -15,6 +15,8 @@ export function PowerRankings({ data }: { data: Rankings }) {
   const [source, setSource] = React.useState<RankSource>("Consensus")
   const [picked, setPicked] = React.useState(data.latestTable[0].manager)
   const maxSpread = Math.max(...data.latestTable.map((r) => r.spread))
+  const biasLimit = Math.max(...data.bias.flatMap((r) => data.rankers.map((k) => Math.abs(r[k]))))
+  const signed = (x: number) => (x > 0 ? `+${x}` : String(x))
 
   return (
     <div className="grid gap-4">
@@ -60,14 +62,64 @@ export function PowerRankings({ data }: { data: Rankings }) {
           </ChartContainer>
         </Panel>
       </div>
-      <Panel title={`Latest ballots (${data.latest})`} description="Spread is the gap between the highest and lowest rank; the biggest disagreements are highlighted.">
+      <Panel
+        title={`Latest ballots (${data.latest})`}
+        description="Spread is the gap between the highest and lowest rank; the biggest disagreements are highlighted. Standing is where the manager actually sat after that week (wins, then points for)."
+      >
         <SimpleTable
-          head={["Consensus", "Manager", "Record", "Logan", "Andy", "ESPN", "Spread"]}
-          align={["right", "left", "right", "right", "right", "right", "right"]}
+          head={["Consensus", "Manager", "Record", "Logan", "Andy", "ESPN", "Spread", "Standing", "Ranked vs standing"]}
+          align={["right", "left", "right", "right", "right", "right", "right", "right", "right"]}
           highlight={(i) => data.latestTable[i].spread === maxSpread}
-          rows={data.latestTable.map((r) => [r.consensus, r.manager, r.record, r.Logan, r.Andy, r.ESPN, r.spread])}
+          rows={data.latestTable.map((r) => [
+            r.consensus,
+            r.manager,
+            r.record,
+            r.Logan,
+            r.Andy,
+            r.ESPN,
+            r.spread,
+            r.standing,
+            r.standing === r.consensus ? "Same" : r.standing > r.consensus ? `${r.standing - r.consensus} above` : `${r.consensus - r.standing} below`,
+          ])}
         />
       </Panel>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel
+          title="Who rates whom"
+          description="How many spots higher (blue, +) or lower (red, −) each ranker puts a manager than the consensus does, averaged over every ballot."
+        >
+          <HeatTable
+            corner="Manager"
+            columns={data.rankers}
+            highlight={(m) => m === picked}
+            rows={data.bias.map((r) => ({
+              key: r.manager,
+              label: r.manager,
+              cells: data.rankers.map((k) => ({
+                text: signed(r[k]),
+                ...diverging(r[k], biasLimit),
+                title: `${k} ranks ${r.manager} ${Math.abs(r[k])} spots ${r[k] >= 0 ? "higher" : "lower"} than the consensus on average`,
+              })),
+            }))}
+          />
+        </Panel>
+        <div className="grid content-start gap-4">
+          <Panel title="Biggest risers" description="Largest jumps in the consensus from one ballot to the next.">
+            <SimpleTable
+              head={["Manager", "Ballots", "Move"]}
+              align={["left", "left", "right"]}
+              rows={data.risers.map((m) => [m.manager, m.week, `${m.from} → ${m.to} (+${m.change})`])}
+            />
+          </Panel>
+          <Panel title="Biggest fallers">
+            <SimpleTable
+              head={["Manager", "Ballots", "Move"]}
+              align={["left", "left", "right"]}
+              rows={data.fallers.map((m) => [m.manager, m.week, `${m.from} → ${m.to} (${m.change})`])}
+            />
+          </Panel>
+        </div>
+      </div>
     </div>
   )
 }

@@ -11,6 +11,7 @@ const when = (g: GameLine) => `${g.year} ${g.label}`
 const versus = (g: GameLine) => `${g.manager} ${fmt(g.pf)} – ${fmt(g.pa)} ${g.opponent}`
 
 const config = { pf: { label: "Points", theme: SERIES.blue } } satisfies ChartConfig
+const marginConfig = { games: { label: "Games", theme: SERIES.blue } } satisfies ChartConfig
 
 export function RecordBook({ book }: { book: Book }) {
   const topScores = book.topScores.map((g, i) => ({ ...g, key: `${i + 1}. ${g.manager}`, when: `${g.year} ${g.label}` }))
@@ -31,6 +32,8 @@ export function RecordBook({ book }: { book: Book }) {
           value={`${book.currentStreaks[0].kind}${book.currentStreaks[0].length}`}
           detail={`${book.currentStreaks[0].manager}, since ${book.currentStreaks[0].from}`}
         />
+        <StatTile label="Highest score in a loss" value={fmt(book.highestLoss.pf)} detail={`${book.highestLoss.manager} lost to ${book.highestLoss.opponent} (${fmt(book.highestLoss.pa)}), ${when(book.highestLoss)}`} />
+        <StatTile label="Lowest score in a win" value={fmt(book.lowestWin.pf)} detail={`${book.lowestWin.manager} beat ${book.lowestWin.opponent} (${fmt(book.lowestWin.pa)}), ${when(book.lowestWin)}`} />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Top 10 single-week scores">
@@ -58,6 +61,29 @@ export function RecordBook({ book }: { book: Book }) {
               `+${fmt(g.pf - g.pa)}`,
               `${g.year} ${g.short}`,
             ])}
+          />
+        </Panel>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="How games are won" description="Every winning margin, in 5-point bins. Double weeks are left out.">
+          <ChartContainer config={marginConfig} className="aspect-auto h-64 w-full">
+            <BarChart data={book.marginBins} margin={{ top: 8, right: 8, left: -16 }} barCategoryGap={2}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="bin" tickLine={false} axisLine={false} tickMargin={8} interval="preserveStartEnd" />
+              <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent labelFormatter={(bin) => `Won by ${bin} points`} />}
+              />
+              <Bar dataKey="games" fill="var(--color-games)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+        </Panel>
+        <Panel title="Double-week records" description="Top 10 scores from double weeks, which cover two NFL weeks.">
+          <SimpleTable
+            head={["Manager", "Score", "Opponent", "When"]}
+            align={["left", "right", "left", "left"]}
+            rows={book.doubleWeeks.map((g) => [g.manager, `${fmt(g.pf)} – ${fmt(g.pa)}`, g.opponent, `${g.year} ${g.label}`])}
           />
         </Panel>
       </div>

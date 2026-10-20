@@ -7,12 +7,14 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { DataTable } from "../../data-table"
 import { SortableHeader, sortFn_numeric } from "../../columns"
 import { type DataTableFeatures } from "../../data-table-features"
-import type { LuckRow } from "../stats"
-import { Controls, Legend, Panel, Picker, SERIES } from "../ui"
+import { CLOSE_GAME, type LuckRow } from "../stats"
+import { Controls, Legend, Panel, Picker, SERIES, SimpleTable } from "../ui"
 
 const columnHelper = createColumnHelper<DataTableFeatures, LuckRow>()
-const keys = ["Record", "All-play", "All-play%", "Exp W", "Luck", "Median", "Top weeks", "Bottom weeks"] as const
-const textKeys = new Set<string>(["Record", "All-play", "Median"])
+const keys = [
+  "Record", "All-play", "All-play%", "Exp W", "Luck", "Median", "Top weeks", "Bottom weeks", "Lucky W", "Unlucky L", "Close",
+] as const
+const textKeys = new Set<string>(["Record", "All-play", "Median", "Close"])
 
 const columns = columnHelper.columns([
   columnHelper.accessor("player", {
@@ -48,6 +50,14 @@ export function Luck({ bySeason }: { bySeason: Record<string, LuckRow[]> }) {
   const [scope, setScope] = React.useState<Scope>(scopes[1])
   const rows = bySeason[String(scope)]
   const chart = [...rows].sort((a, b) => b.Luck - a.Luck)
+  const close = rows
+    .map((r) => {
+      const [w, l] = r.Close.split("-").map(Number)
+      return { manager: r.player, w, l }
+    })
+    .filter((r) => r.w + r.l > 0)
+    .sort((a, b) => b.w / (b.w + b.l) - a.w / (a.w + a.l) || b.w + b.l - (a.w + a.l))
+  const breaks = [...rows].sort((a, b) => b["Unlucky L"] - b["Lucky W"] - (a["Unlucky L"] - a["Lucky W"]))
 
   return (
     <div className="grid gap-4">
@@ -85,10 +95,33 @@ export function Luck({ bySeason }: { bySeason: Record<string, LuckRow[]> }) {
       </Panel>
       <Panel
         title="All-play and median records"
-        description="All-play: your record if you played everyone each week. Median: a win for every week above the league median. Top/bottom weeks: highest or lowest score that week."
+        description={`All-play: your record if you played everyone each week. Median: a win for every week above the league median. Top/bottom weeks: highest or lowest score that week. Lucky W: won while below the week's median. Unlucky L: lost while above it. Close: games decided by under ${CLOSE_GAME} points.`}
       >
         <DataTable columns={columns} data={rows} initialSorting={[{ id: "Luck", desc: true }]} />
       </Panel>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Breaks of the game" description="Losses despite a top-half score against wins despite a bottom-half one. Most hard done by first.">
+          <SimpleTable
+            head={["Manager", "Unlucky losses", "Lucky wins", "Net"]}
+            align={["left", "right", "right", "right"]}
+            rows={breaks.map((r) => {
+              const net = r["Unlucky L"] - r["Lucky W"]
+              return [r.player, r["Unlucky L"], r["Lucky W"], net > 0 ? `+${net}` : net]
+            })}
+          />
+        </Panel>
+        <Panel title="Close games" description={`Record in games decided by under ${CLOSE_GAME} points. Best record first.`}>
+          {close.length ? (
+            <SimpleTable
+              head={["Manager", "Close W-L", "Games"]}
+              align={["left", "right", "right"]}
+              rows={close.map((r) => [r.manager, `${r.w}-${r.l}`, r.w + r.l])}
+            />
+          ) : (
+            <p className="text-muted-foreground text-sm">No games that close in this span.</p>
+          )}
+        </Panel>
+      </div>
     </div>
   )
 }
