@@ -753,4 +753,14 @@ export const GALLERY: GalleryItem[] = [
     people: ['andy', 'logan'],
     type: 'meme',
   },
+  {
+    kind: 'image',
+    src: '/slander-gallery/RobertLosing.png',
+    alt: '',
+    width: 2316, height: 2895,
+    creator: 'logan',
+    date: '2026-10-15',
+    people: ['robert'],
+    type: 'graphic',
+  },
 ]
