@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:schema":    "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/00_schema.sql",
+    "db:seed":      "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/01_seed.sql",
+    "db:populate":  "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/02_populate.sql"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
