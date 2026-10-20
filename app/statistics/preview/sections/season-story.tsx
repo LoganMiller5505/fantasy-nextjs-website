@@ -3,7 +3,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import type { SeasonStory as Story, WeekResult } from "../stats"
-import { Controls, HighlightLines, Legend, Panel, Picker, SERIES, SimpleTable, fmt } from "../ui"
+import { Controls, HighlightLines, Legend, PICK_HINT, Panel, Picker, SERIES, SimpleTable, fmt } from "../ui"
 
 function Chip({ result, label }: { result: WeekResult; label: string }) {
   const text = result === "bye" ? "–" : result ?? "·"
@@ -41,8 +41,14 @@ export function SeasonStory({ stories }: { stories: Record<number, Story> }) {
       {controls}
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Race for the top" description={`Cumulative wins by week, ${year} regular season.`}>
-          <HighlightLines data={story.cumulative} xKey="week" managers={story.managers} highlighted={highlighted} />
-          <Legend items={[{ label: highlighted, color: SERIES.blue }, { label: "Rest of the league", color: "muted" }]} />
+          <HighlightLines
+            data={story.cumulative}
+            xKey="week"
+            managers={story.managers}
+            highlighted={highlighted}
+            onPick={setPicked}
+          />
+          <Legend items={[{ label: highlighted, color: SERIES.blue }, { label: "Rest of the league", color: "muted" }]} note={PICK_HINT} />
         </Panel>
         <Panel title="Weekly score vs the league" description="Points each week against that week's league median.">
           <HighlightLines
@@ -50,6 +56,7 @@ export function SeasonStory({ stories }: { stories: Record<number, Story> }) {
             xKey="week"
             managers={story.managers}
             highlighted={highlighted}
+            onPick={setPicked}
             extra={{ key: "median", label: "League median" }}
           />
           <Legend
@@ -58,6 +65,7 @@ export function SeasonStory({ stories }: { stories: Record<number, Story> }) {
               { label: "League median", color: SERIES.orange },
               { label: "Rest of the league", color: "muted" },
             ]}
+            note={PICK_HINT}
           />
         </Panel>
       </div>

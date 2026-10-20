@@ -4,7 +4,7 @@ import * as React from "react"
 import { Trophy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { careers } from "../stats"
-import { Controls, HighlightLines, Legend, Panel, Picker, SERIES, SimpleTable } from "../ui"
+import { Controls, HighlightLines, Legend, PICK_HINT, Panel, Picker, SERIES, SimpleTable } from "../ui"
 
 type Careers = ReturnType<typeof careers>
 
@@ -27,10 +27,11 @@ export function CareersView({ data }: { data: Careers }) {
           xKey="season"
           managers={data.managers}
           highlighted={picked}
+          onPick={setPicked}
           domain={[0, 100]}
           unit="%"
         />
-        <Legend items={[{ label: picked, color: SERIES.blue }, { label: "Everyone else", color: "muted" }]} />
+        <Legend items={[{ label: picked, color: SERIES.blue }, { label: "Everyone else", color: "muted" }]} note={PICK_HINT} />
       </Panel>
       <Panel title="Careers" description="Records include playoffs. Former managers aren't on the latest roster.">
         <SimpleTable

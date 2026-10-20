@@ -131,12 +131,14 @@ export function SimpleTable({
 }
 
 // One line per manager: the picked one in blue on top, everyone else as thin grey context.
-// The tooltip only reports the picked manager, since twelve rows of numbers go unread.
+// The tooltip reports the picked manager, plus whichever grey line the pointer is on, since
+// twelve rows of numbers go unread. Clicking a grey line picks that manager.
 export function HighlightLines({
   data,
   xKey,
   managers,
   highlighted,
+  onPick,
   reversed = false,
   domain,
   ticks,
@@ -147,6 +149,7 @@ export function HighlightLines({
   xKey: string
   managers: string[]
   highlighted: string
+  onPick?: (manager: string) => void
   reversed?: boolean
   domain?: [number, number]
   ticks?: number[]
@@ -154,11 +157,16 @@ export function HighlightLines({
   // An additional named series drawn in orange (e.g. the league median)
   extra?: { key: string; label: string }
 }) {
+  const [hovered, setHovered] = React.useState<string | null>(null)
   const config = {
     [highlighted]: { label: highlighted, theme: SERIES.blue },
     ...(extra && { [extra.key]: { label: extra.label, theme: SERIES.orange } }),
   } satisfies ChartConfig
-  const others = managers.filter((m) => m !== highlighted)
+  // The hovered line is drawn last so it sits above the other grey ones
+  const others = managers
+    .filter((m) => m !== highlighted)
+    .sort((a, b) => Number(a === hovered) - Number(b === hovered))
+  const shown = new Set([highlighted, hovered, extra?.key])
 
   return (
     <ChartContainer config={config} className="aspect-auto h-72 w-full">
@@ -180,7 +188,7 @@ export function HighlightLines({
             <ChartTooltipContent
               active={active}
               label={label}
-              payload={payload?.filter((p) => p.dataKey === highlighted || p.dataKey === extra?.key)}
+              payload={payload?.filter((p) => shown.has(p.dataKey as string))}
               formatter={(value, name) => (
                 <div className="flex w-full justify-between gap-4">
                   <span className="text-muted-foreground">{config[name as string]?.label ?? name}</span>
@@ -199,11 +207,34 @@ export function HighlightLines({
             dataKey={m}
             type="linear"
             stroke="var(--muted-foreground)"
-            strokeOpacity={0.3}
-            strokeWidth={1}
+            strokeOpacity={m === hovered ? 1 : 0.3}
+            strokeWidth={m === hovered ? 2 : 1}
             dot={false}
             activeDot={false}
             isAnimationActive={false}
+          />
+        ))}
+        {/* Invisible wide strokes over the grey lines, so a 1px line is easy to point at */}
+        {others.map((m) => (
+          <Line
+            key={`hit-${m}`}
+            dataKey={m}
+            type="linear"
+            stroke="var(--foreground)"
+            strokeOpacity={0}
+            strokeWidth={14}
+            dot={false}
+            activeDot={false}
+            isAnimationActive={false}
+            legendType="none"
+            tooltipType="none"
+            style={{ cursor: onPick ? "pointer" : undefined }}
+            onMouseEnter={() => setHovered(m)}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => {
+              setHovered(null)
+              onPick?.(m)
+            }}
           />
         ))}
         {extra && (
@@ -222,7 +253,15 @@ export function HighlightLines({
   )
 }
 
-export function Legend({ items }: { items: { label: string; color: { light: string; dark: string } | "muted" }[] }) {
+export const PICK_HINT = "Hover a grey line to see who it is; click it to switch."
+
+export function Legend({
+  items,
+  note,
+}: {
+  items: { label: string; color: { light: string; dark: string } | "muted" }[]
+  note?: string
+}) {
   return (
     <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
       {items.map(({ label, color }) => (
@@ -238,6 +277,7 @@ export function Legend({ items }: { items: { label: string; color: { light: stri
           {label}
         </span>
       ))}
+      {note && <span className="text-muted-foreground/80">{note}</span>}
     </div>
   )
 }

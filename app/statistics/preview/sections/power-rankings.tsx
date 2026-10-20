@@ -4,7 +4,7 @@ import * as React from "react"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import type { RankSource, powerRankings } from "../stats"
-import { Controls, HighlightLines, Legend, Panel, Picker, SERIES, SimpleTable } from "../ui"
+import { Controls, HighlightLines, Legend, PICK_HINT, Panel, Picker, SERIES, SimpleTable } from "../ui"
 
 type Rankings = ReturnType<typeof powerRankings>
 
@@ -33,11 +33,12 @@ export function PowerRankings({ data }: { data: Rankings }) {
             xKey="week"
             managers={data.managers}
             highlighted={picked}
+            onPick={setPicked}
             reversed
             domain={[1, data.managers.length]}
             ticks={[1, 4, 8, data.managers.length]}
           />
-          <Legend items={[{ label: picked, color: SERIES.blue }, { label: "Rest of the league", color: "muted" }]} />
+          <Legend items={[{ label: picked, color: SERIES.blue }, { label: "Rest of the league", color: "muted" }]} note={PICK_HINT} />
         </Panel>
         <Panel
           title="Who calls it best"
