@@ -28,6 +28,15 @@ export const PROFILE = {
 
 export const TWEETS: Tweet[] = [
   {
+    id: '2026-10-20-whieldon-qb',
+    date: '2026-10-20T09:30',
+    text: 'With Jalen Hurts out for the season, Naberhood Creep will be starting backup quarterback Bo Nix this week against CRashee and Dart.',
+    replies: 246,
+    retweets: 1_870,
+    likes: 12_600,
+    views: 1_870_000,
+  },
+  {
     id: '2026-10-19-robert-trade',
     date: '2026-10-19T13:32',
     text: 'GM Robert Haas is reportedly working on a trade package that would involve RB Omarion Hampton, WR CeeDee Lamb, WR Mike Evans, and others to a potential buyer, per sources.',
