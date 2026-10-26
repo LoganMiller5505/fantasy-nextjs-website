@@ -1,0 +1,36 @@
+import {
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  createFilteredRowModel,
+  createSortedRowModel,
+  filterFn_includesString,
+  rowSortingFeature,
+  sortFn_alphanumeric,
+  sortFn_text,
+  tableFeatures,
+  type FilterFn,
+} from "@tanstack/react-table"
+
+// Keeps rows whose value is not in the filter value (a list of hidden values).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const filterFn_excludes: FilterFn<any, any> = (row, columnId, filterValue: unknown[]) =>
+  !filterValue.includes(row.getValue(columnId))
+filterFn_excludes.autoRemove = (value?: unknown[]) => !value?.length
+
+// New in v9: declare the features this table uses — anything you don't
+// register is tree-shaken out of the bundle.
+export const features = tableFeatures({
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  rowSortingFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  filterFns: { includesString: filterFn_includesString, excludes: filterFn_excludes },
+  sortFns: { alphanumeric: sortFn_alphanumeric, text: sortFn_text },
+  // Numeric columns set align: "right" so their figures line up
+  columnMeta: {} as { align?: "left" | "right" },
+})
+
+// Pass this as the first generic argument to `ColumnDef`, `Column`, `Table`,
+// and `Row` so each type knows which feature APIs are available.
+export type DataTableFeatures = typeof features
