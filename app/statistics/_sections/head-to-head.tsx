@@ -9,7 +9,8 @@ import type { Side, closestRivalries, nemeses } from "../_lib/stats"
 import { H2HGrid } from "./h2h-grid"
 import { LeagueRivalries, Rivalry, type Pair } from "./rivalries"
 
-// Everyone against everyone first, then one rivalry in detail, then the league-wide lists
+// One rivalry first (yours, once you're highlighted), then everyone against everyone, then the
+// league-wide lists
 export function HeadToHead({
   grid,
   sides,
@@ -50,11 +51,11 @@ export function HeadToHead({
       <Toolbar>
         <HighlightPicker managers={managers} value={highlighted} onChange={changeHighlight} />
       </Toolbar>
-      <Section title="Everyone">
-        <H2HGrid grid={grid} openRivalry={openRivalry} highlighted={highlighted} />
-      </Section>
       <Section title="Rivalry">
         <Rivalry sides={sides} managers={managers} pair={[a, b]} setRivalry={setRivalry} />
+      </Section>
+      <Section title="Everyone">
+        <H2HGrid grid={grid} openRivalry={openRivalry} highlighted={highlighted} />
       </Section>
       <Section title="League-wide">
         <LeagueRivalries closest={closest} foes={foes} highlighted={highlighted} openRivalry={openRivalry} />

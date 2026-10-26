@@ -2,7 +2,6 @@
 
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, XAxis, YAxis } from "recharts"
 import {
-  ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
@@ -10,7 +9,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import type { divisionStrength, divisions } from "../_lib/stats"
-import { Panel, SERIES, SimpleTable, fmt } from "../_components/ui"
+import { Chart, Panel, SERIES, SimpleTable } from "../_components/ui"
 
 type Divisions = ReturnType<typeof divisions>
 
@@ -26,7 +25,7 @@ const divisionConfig = (names: string[]) =>
 function StrengthChart({ names, data, unit, zeroTo }: { names: string[]; data: Record<string, string | number>[]; unit?: string; zeroTo?: number }) {
   const strengthConfig = divisionConfig(names)
   return (
-    <ChartContainer config={strengthConfig} className="aspect-auto h-56 w-full">
+    <Chart config={strengthConfig} className="aspect-auto h-56 w-full">
       <BarChart data={data} margin={{ top: 8, right: 8, left: -16 }} barGap={2}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="season" tickLine={false} axisLine={false} tickMargin={8} />
@@ -37,32 +36,7 @@ function StrengthChart({ names, data, unit, zeroTo }: { names: string[]; data: R
           <Bar key={n} dataKey={n} fill={`var(--color-${n})`} radius={[4, 4, 0, 0]} maxBarSize={40} />
         ))}
       </BarChart>
-    </ChartContainer>
-  )
-}
-
-// The season's three division tables. A season without divisions says so.
-export function DivisionTables({ data, year, highlighted }: { data: Divisions; year: number; highlighted: string | null }) {
-  if (!data) {
-    return (
-      <Panel title={`${year} divisions`}>
-        <p className="text-muted-foreground">There were no divisions that season.</p>
-      </Panel>
-    )
-  }
-  return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {data.tables.map(({ division, rows }) => (
-        <Panel key={division} title={`${division}, ${year}`}>
-          <SimpleTable
-            head={["Manager", "W-L", "Div", "PF"]}
-            align={["left", "right", "right", "right"]}
-            highlight={(i) => rows[i].manager === highlighted}
-            rows={rows.map((r) => [r.manager, `${r.wins}-${r.losses}`, r.divRecord, fmt(r.pf, 1)])}
-          />
-        </Panel>
-      ))}
-    </div>
+    </Chart>
   )
 }
 
@@ -72,7 +46,7 @@ export function DivisionMatchups({ data, year }: { data: Divisions; year: number
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Panel title={`Strongest division, ${year}`} description="Each division's win % in games against the other two.">
-        <ChartContainer config={divisionConfig(data.names)} className="aspect-auto h-56 w-full">
+        <Chart config={divisionConfig(data.names)} className="aspect-auto h-56 w-full">
           <BarChart data={data.interPct} margin={{ top: 20, right: 8, left: -16 }}>
             <CartesianGrid vertical={false} />
             <XAxis dataKey="division" tickLine={false} axisLine={false} tickMargin={8} />
@@ -88,7 +62,7 @@ export function DivisionMatchups({ data, year }: { data: Divisions; year: number
               <LabelList dataKey="record" position="top" className="fill-muted-foreground" fontSize={11} />
             </Bar>
           </BarChart>
-        </ChartContainer>
+        </Chart>
       </Panel>
       <Panel title={`Division vs division, ${year}`} description="Row division's record against the column division.">
         <SimpleTable

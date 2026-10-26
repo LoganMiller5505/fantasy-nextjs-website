@@ -72,9 +72,10 @@ export function ScopeToggle<T extends Scope>({
 
 // The bar at the top of a page for the controls that apply to every panel on it (the season and
 // the highlighted manager). It sticks under the site header so they stay in reach on long pages.
+// On phones it stays one row: the season choice keeps its size and the manager picker narrows.
 export function Toolbar({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-background/90 sticky top-14 z-40 -mx-4 -mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 backdrop-blur">
+    <div className="bg-background/90 sticky top-14 z-40 -mx-4 -mt-2 flex items-center gap-x-3 gap-y-2 border-b px-4 py-2 backdrop-blur sm:flex-wrap sm:gap-x-4 [&>[data-slot=toggle-group]]:shrink-0">
       {children}
     </div>
   )

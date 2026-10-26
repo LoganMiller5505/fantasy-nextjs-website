@@ -16,7 +16,7 @@ export const sections = [
   { href: "/statistics/head-to-head", label: "Head-to-head" },
   { href: "/statistics/scoring", label: "Scoring" },
   { href: "/statistics/managers", label: "Managers" },
-  { href: "/statistics/playoffs", label: "Playoff history" },
+  { href: "/statistics/playoffs", label: "Playoffs" },
   { href: "/statistics/records", label: "Records" },
 ] as const
 
@@ -38,7 +38,8 @@ export function SectionNav() {
     >
       <ul className="flex w-max gap-1">
         {sections.map(({ href, label }) => {
-          const current = pathname === href
+          // A manager's own page sits under Managers
+          const current = pathname === href || (href === "/statistics/managers" && pathname.startsWith(`${href}/`))
           return (
             <li key={href}>
               <Link

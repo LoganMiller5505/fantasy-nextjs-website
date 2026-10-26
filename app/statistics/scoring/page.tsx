@@ -5,13 +5,13 @@ import { scoringRanks, scoringRows, scoringTrend, strongFinish, type Scope } fro
 import { ScoringView } from "../_sections/scoring"
 
 export default async function ScoringPage({ searchParams }: { searchParams: Promise<{ season?: string | string[] }> }) {
-  const { league, sides, seasons } = await getStats()
+  const { league, sides, seasons, current } = await getStats()
   const scopes: Scope[] = ["all", ...seasons]
   const byScope = <T,>(derive: (scope: Scope) => T) => Object.fromEntries(scopes.map((s) => [s, derive(s)]))
 
   return (
     <ScoringView
-      initialScope={parseScope((await searchParams).season, scopes, "all")}
+      initialScope={parseScope((await searchParams).season, scopes, current)}
       scopes={scopes}
       rows={byScope((s) => scoringRows(sides, s))}
       spread={byScope((s) => consistency(sides, s))}

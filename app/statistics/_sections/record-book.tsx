@@ -1,21 +1,15 @@
 "use client"
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import type { GameLine, SeasonLine, recordBook, seasonRecords } from "../_lib/stats"
-import { Panel, SERIES, SimpleTable, StatTile, TileGrid, fmt } from "../_components/ui"
+import { Panel, SimpleTable, StatTile, TileGrid, fmt } from "../_components/ui"
 
 type Book = ReturnType<typeof recordBook>
 
 const when = (g: GameLine) => `${g.year} ${g.label}`
 const versus = (g: GameLine) => `${g.manager} ${fmt(g.pf)} – ${fmt(g.pa)} ${g.opponent}`
 
-const config = { pf: { label: "Points", theme: SERIES.blue } } satisfies ChartConfig
-
 // Single-game records, all-time. Double weeks are left out, since they cover two NFL weeks.
 export function SingleGames({ book, highlighted }: { book: Book; highlighted: string | null }) {
-  const topScores = book.topScores.map((g, i) => ({ ...g, key: `${i + 1}. ${g.manager}`, when: `${g.year} ${g.label}` }))
-
   return (
     <div className="grid gap-4">
       <TileGrid>
@@ -29,19 +23,13 @@ export function SingleGames({ book, highlighted }: { book: Book; highlighted: st
         <StatTile label="Lowest score in a win" value={fmt(book.lowestWin.pf)} detail={`${book.lowestWin.manager} beat ${book.lowestWin.opponent} (${fmt(book.lowestWin.pa)}), ${when(book.lowestWin)}`} />
       </TileGrid>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Top 10 single-week scores" description="Tap or hover a bar for the opponent and week.">
-          <ChartContainer config={config} className="aspect-auto h-80 w-full">
-            <BarChart data={topScores} layout="vertical" barCategoryGap={4} margin={{ left: 8, right: 16 }}>
-              <CartesianGrid horizontal={false} />
-              <XAxis type="number" tickLine={false} axisLine={false} />
-              <YAxis type="category" dataKey="key" tickLine={false} axisLine={false} width={96} />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent labelFormatter={(_, p) => `${p?.[0]?.payload.manager} vs ${p?.[0]?.payload.opponent}, ${p?.[0]?.payload.when}`} />}
-              />
-              <Bar dataKey="pf" fill="var(--color-pf)" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ChartContainer>
+        <Panel title="Top 10 single-week scores">
+          <SimpleTable
+            head={["#", "Manager", "Score", "Opponent", "When"]}
+            align={["left", "left", "right", "left", "left"]}
+            highlight={(i) => book.topScores[i].manager === highlighted}
+            rows={book.topScores.map((g, i) => [i + 1, g.manager, fmt(g.pf), `${g.opponent} (${fmt(g.pa)})`, `${g.year} ${g.short}`])}
+          />
         </Panel>
         <Panel title="Top 10 blowouts">
           <SimpleTable

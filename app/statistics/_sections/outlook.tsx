@@ -26,7 +26,7 @@ export function OutlookView({
         <HighlightPicker managers={managers} value={highlighted} onChange={setHighlighted} />
       </Toolbar>
       <Section title="Next week">
-        <Matchups data={ahead} highlighted={highlighted} />
+        <Matchups data={ahead} highlighted={highlighted} odds={race ? Object.fromEntries(race.rows.map((r) => [r.manager, { playoffs: r.playoffs, next: r.next }])) : undefined} />
       </Section>
       {race && (
         <Section title="Playoff race">

@@ -2,11 +2,14 @@
 
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { rivalry, type Side, type closestRivalries, type nemeses } from "../_lib/stats"
-import { Legend, Panel, Picker, SERIES, SimpleTable, StatTile, TileGrid, fmt } from "../_components/ui"
+import { Chart, Legend, Panel, Picker, SERIES, SimpleTable, StatTile, TileGrid, fmt } from "../_components/ui"
 
 export type Pair = [string | null, string | null]
+
+// Fewer meetings than this are listed in a table; a chart of one or two bars says little
+const CHART_MEETINGS = 3
 
 // One rivalry in detail. Either manager can be unpicked, which asks for a pick instead.
 export function Rivalry({
@@ -25,7 +28,7 @@ export function Rivalry({
   const config = {
     margin: { label: "Margin" },
     a: { label: `${a} won`, theme: SERIES.blue },
-    b: { label: `${b} won`, theme: SERIES.orange },
+    b: { label: `${b} won`, theme: SERIES.red },
   } satisfies ChartConfig
   const last = series?.games.at(-1)
 
@@ -55,18 +58,21 @@ export function Rivalry({
       }
     >
       {!series ? (
-        <p className="text-muted-foreground text-sm">Pick two managers, or tap a cell in the grid above.</p>
+        <p className="text-muted-foreground text-sm">Pick two managers, or tap a cell in the grid below.</p>
       ) : !last ? (
         <p className="text-muted-foreground text-sm">These two have never played each other.</p>
       ) : (
         <div className="grid gap-4">
-          <TileGrid>
+          {/* With one meeting, the average is just that game, so it's left to the last-meeting tile */}
+          <TileGrid wide={series.games.length > 1 ? 4 : 3}>
             <StatTile label="Series" value={`${series.wins}-${series.losses}`} detail={`${a}'s record against ${b}`} />
-            <StatTile
-              label="Points"
-              value={`${fmt(series.pf / series.games.length, 1)} – ${fmt(series.pa / series.games.length, 1)}`}
-              detail="Average per meeting"
-            />
+            {series.games.length > 1 && (
+              <StatTile
+                label="Points"
+                value={`${fmt(series.pf / series.games.length, 1)} – ${fmt(series.pa / series.games.length, 1)}`}
+                detail="Average per meeting"
+              />
+            )}
             <StatTile
               label="Streak"
               value={series.streak ? `${series.streak.holder} ${series.streak.length}` : "—"}
@@ -80,36 +86,54 @@ export function Rivalry({
             />
             <StatTile label="Last meeting" value={`${fmt(last.pf, 1)} – ${fmt(last.pa, 1)}`} detail={last.playoff ? `${last.when}, playoffs` : last.when} />
           </TileGrid>
-          <div className="grid gap-2">
-            <h4 className="text-sm font-medium">Every meeting</h4>
-            <p className="text-muted-foreground text-xs">
-              Margin from {a}&apos;s side: above the line {a} won, below {b} won. Tap or hover a bar for the score.
-            </p>
-            <ChartContainer config={config} className="aspect-auto h-64 w-full">
-              <BarChart data={series.games} margin={{ top: 8, right: 8, left: -16 }}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="when" tickLine={false} axisLine={false} tickMargin={8} />
-                <YAxis tickLine={false} axisLine={false} />
-                <ReferenceLine y={0} stroke="var(--border)" />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      hideIndicator
-                      labelFormatter={(_, p) => `${p?.[0]?.payload.when}${p?.[0]?.payload.playoff ? ", playoffs" : ""}`}
-                      formatter={(_, __, item) => `${a} ${fmt(item.payload.pf)} – ${fmt(item.payload.pa)} ${b}`}
-                    />
-                  }
+          {series.games.length < CHART_MEETINGS ? (
+            series.games.length > 1 && (
+              <div className="grid gap-2">
+                <h4 className="text-sm font-medium">Every meeting</h4>
+                <SimpleTable
+                  head={["When", a!, b!, "Winner"]}
+                  align={["left", "right", "right", "left"]}
+                  rows={series.games.map((g) => [
+                    g.playoff ? `${g.when}, playoffs` : g.when,
+                    fmt(g.pf),
+                    fmt(g.pa),
+                    g.margin > 0 ? a : b,
+                  ])}
                 />
-                <Bar dataKey="margin" radius={4} maxBarSize={40}>
-                  {series.games.map((g) => (
-                    <Cell key={g.when} fill={g.margin > 0 ? "var(--color-a)" : "var(--color-b)"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ChartContainer>
-            <Legend items={[{ label: `${a} won`, color: SERIES.blue }, { label: `${b} won`, color: SERIES.orange }]} />
-          </div>
+              </div>
+            )
+          ) : (
+            <div className="grid gap-2">
+              <h4 className="text-sm font-medium">Every meeting</h4>
+              <p className="text-muted-foreground text-xs">
+                Margin from {a}&apos;s side: above the line {a} won, below {b} won. Tap or hover a bar for the score.
+              </p>
+              <Chart config={config} className="aspect-auto h-64 w-full">
+                <BarChart data={series.games} margin={{ top: 8, right: 8, left: -16 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="when" tickLine={false} axisLine={false} tickMargin={8} />
+                  <YAxis tickLine={false} axisLine={false} />
+                  <ReferenceLine y={0} stroke="var(--border)" />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        hideIndicator
+                        labelFormatter={(_, p) => `${p?.[0]?.payload.when}${p?.[0]?.payload.playoff ? ", playoffs" : ""}`}
+                        formatter={(_, __, item) => `${a} ${fmt(item.payload.pf)} – ${fmt(item.payload.pa)} ${b}`}
+                      />
+                    }
+                  />
+                  <Bar dataKey="margin" radius={4} maxBarSize={40}>
+                    {series.games.map((g) => (
+                      <Cell key={g.when} fill={g.margin > 0 ? "var(--color-a)" : "var(--color-b)"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </Chart>
+              <Legend items={[{ label: `${a} won`, color: SERIES.blue }, { label: `${b} won`, color: SERIES.red }]} />
+            </div>
+          )}
         </div>
       )}
     </Panel>

@@ -8,7 +8,7 @@ import { DataTable } from "../_components/data-table"
 import { type DataTableFeatures } from "../_components/data-table-features"
 import { ScopeToggle } from "../_components/scope"
 import { SortableHeader, numeric, sortFn_record } from "../_components/table-helpers"
-import { HighlightLines, Legend, PICK_HINT, Panel, highlightLegend, pctFmt } from "../_components/ui"
+import { HighlightLines, Legend, ManagerLink, PICK_HINT, Panel, highlightLegend, pctFmt } from "../_components/ui"
 import type { Scope, careers, winPctByWeek } from "../_lib/stats"
 
 type Careers = ReturnType<typeof careers>
@@ -18,8 +18,7 @@ type CareerRow = Careers["rows"][number] & { player: string }
 const columnHelper = createColumnHelper<DataTableFeatures, CareerRow>()
 const record = { sortFn: sortFn_record, sortDescFirst: true, meta: { align: "right" as const } }
 
-// `onOpen`: a manager's name opens their page
-const careerColumns = (years: number[], onOpen: (manager: string) => void) =>
+const careerColumns = (years: number[]) =>
   columnHelper.columns([
     columnHelper.accessor("player", {
       header: ({ column }) => <SortableHeader column={column} title="Manager" />,
@@ -27,9 +26,7 @@ const careerColumns = (years: number[], onOpen: (manager: string) => void) =>
       filterFn: "excludes",
       cell: ({ row }) => (
         <span className="inline-flex items-center gap-2">
-          <button type="button" className="underline-offset-2 hover:underline" onClick={() => onOpen(row.original.player)}>
-            {row.original.player}
-          </button>
+          <ManagerLink manager={row.original.player} />
           {!row.original.active && <Badge variant="outline">Former</Badge>}
         </span>
       ),
@@ -86,19 +83,17 @@ export function CareersView({
   scopes,
   byWeek,
   highlighted,
-  onOpen,
 }: {
   data: Careers
   scopes: Scope[]
   byWeek: Record<string, ReturnType<typeof winPctByWeek>>
   highlighted: string | null
-  onOpen: (manager: string) => void
 }) {
   const [scope, setScope] = React.useState<Scope>("all")
   const overTime = byWeek[String(scope)]
   // A season can be missing the highlighted manager; their line comes back with the season
   const shown = highlighted != null && overTime.managers.includes(highlighted) ? highlighted : null
-  const columns = React.useMemo(() => careerColumns(data.years, onOpen), [data.years, onOpen])
+  const columns = React.useMemo(() => careerColumns(data.years), [data.years])
   const rows = React.useMemo(() => data.rows.map((r) => ({ ...r, player: r.manager })), [data.rows])
 
   return (
@@ -109,7 +104,7 @@ export function CareersView({
       <Panel
         title="Win % over time"
         description={scope === "all" ? "Career win % after every week." : `Win % after each week of ${scope}.`}
-        method="Every game counts, playoffs and consolation games included. A line starts once a manager has played 3 games, and breaks for seasons they weren't in the league."
+        method="Every game counts, playoffs and consolation games included. A line starts once a manager has played 4 games, so it doesn't open on a meaningless 1.000 or .000, and breaks for seasons they weren't in the league."
         controls={<ScopeToggle value={scope} options={scopes} onChange={setScope} />}
       >
         <HighlightLines

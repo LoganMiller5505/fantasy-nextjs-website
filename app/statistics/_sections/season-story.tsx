@@ -6,52 +6,103 @@ import { cn } from "cn"
 import { DataTable } from "../_components/data-table"
 import { type DataTableFeatures } from "../_components/data-table-features"
 import { SortableHeader, sortFn_numeric } from "../_components/table-helpers"
-import type { Award, Halves, SeasonStory as Story, WeekAwards, WeekResult, strongFinish } from "../_lib/stats"
-import { Detail, HighlightLines, Legend, PICK_HINT, highlightLegend, Panel, SERIES, SimpleTable, fmt } from "../_components/ui"
+import type { Award, Halves, SeasonStory as Story, WeekAwards, WeekResult, divisions as divisionsOf, strongFinish } from "../_lib/stats"
+import { Segmented } from "../_components/scope"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Detail, HIGHLIGHT_ROW, HighlightLines, Legend, ManagerLink, PICK_HINT, highlightLegend, Panel, SERIES, SimpleTable, fmt } from "../_components/ui"
 
-function Chip({ result, label }: { result: WeekResult; label: string }) {
-  const text = result === "bye" ? "–" : result ?? "·"
+type Divisions = ReturnType<typeof divisionsOf>
+
+// One week of the form strip. Weeks still to play aren't drawn at all.
+function Chip({ result, label }: { result: Exclude<WeekResult, null>; label: string }) {
+  const said = result === "bye" ? "no game" : result === "W" ? "win" : "loss"
   return (
     <span
-      title={`${label}: ${result === "bye" ? "no game" : result ?? "not played yet"}`}
-      aria-label={`${label}: ${result === "bye" ? "no game" : result === "W" ? "win" : result === "L" ? "loss" : "not played yet"}`}
+      title={`${label}: ${said}`}
+      aria-label={`${label}: ${said}`}
       role="img"
       className={cn(
         "inline-flex size-5 items-center justify-center rounded-[4px] text-[10px] font-semibold",
         result === "W" && "bg-foreground text-background",
         result === "L" && "bg-muted text-muted-foreground",
-        (result === "bye" || result == null) && "text-muted-foreground/60"
+        result === "bye" && "text-muted-foreground/60"
       )}
     >
-      {text}
+      {result === "bye" ? "–" : result}
     </span>
   )
 }
 
-export function Standings({ story, highlighted }: { story: Story; highlighted: string | null }) {
+type View = "Overall" | "By division"
+
+// The season's table: overall with each manager's division, or split into the divisions, ranked
+// within each. PA gives way on phones so the form strip fits.
+export function Standings({ story, divisions, highlighted }: { story: Story; divisions: Divisions; highlighted: string | null }) {
+  const [view, setView] = React.useState<View>("Overall")
+  const division = new Map(divisions?.tables.flatMap((t) => t.rows.map((r) => [r.manager, { name: t.division, record: r.divRecord }])) ?? [])
+  const byDivision = divisions != null && view === "By division"
+  const groups = byDivision
+    ? divisions.tables.map((t) => ({ title: t.division, rows: story.standings.filter((r) => division.get(r.manager)?.name === t.division) }))
+    : [{ title: null, rows: story.standings }]
+  const right = "text-right"
+  const phoneHidden = "max-sm:hidden"
+
   return (
     <Panel
       title={`${story.year} standings`}
-      description="Regular-season record and points, then every week of the season as a win or loss."
-      method="W-L, PF and PA are regular season only. The weeks run through the playoffs, consolation games included: – is a bye and · a game still to play."
+      description="Regular-season record and points, then every week played so far as a win or loss."
+      method={`W-L, PF and PA are regular season only.${divisions ? " Div is the record against the manager's own division." : ""} The weeks run through the playoffs, consolation games included; – is a bye.`}
+      controls={divisions && <Segmented label="Standings view" size="sm" value={view} options={["Overall", "By division"] as const} onChange={setView} />}
     >
-      <SimpleTable
-        head={["#", "Manager", "W-L", "PF", "PA", "Weeks"]}
-        align={["left", "left", "right", "right", "right", "left"]}
-        highlight={(i) => story.standings[i].manager === highlighted}
-        rows={story.standings.map((row, i) => [
-          i + 1,
-          row.manager,
-          `${row.wins}-${row.losses}`,
-          fmt(row.pf),
-          fmt(row.pa),
-          <div key="chips" className="flex gap-0.5">
-            {row.results.map((r, w) => (
-              <Chip key={w} result={r} label={story.weekLabels[w]} />
+      <div className="overflow-hidden rounded-md border [&_[data-slot=table-container]]:scroll-shadow">
+        <Table className="tabular-nums">
+          <TableHeader>
+            <TableRow>
+              <TableHead>#</TableHead>
+              <TableHead>Manager</TableHead>
+              {divisions && !byDivision && <TableHead>Division</TableHead>}
+              <TableHead className={right}>W-L</TableHead>
+              {divisions && <TableHead className={right}>Div</TableHead>}
+              <TableHead className={right}>PF</TableHead>
+              <TableHead className={cn(right, phoneHidden)}>PA</TableHead>
+              <TableHead>Weeks</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groups.map((group) => (
+              <React.Fragment key={group.title ?? "all"}>
+                {group.title && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead colSpan={8} scope="colgroup" className="bg-muted/50 text-foreground h-8 font-semibold">
+                      {group.title}
+                    </TableHead>
+                  </TableRow>
+                )}
+                {group.rows.map((row, i) => (
+                  <TableRow key={row.manager} className={cn("even:bg-muted/30", row.manager === highlighted && HIGHLIGHT_ROW)}>
+                    <TableCell>{i + 1}</TableCell>
+                    <TableCell>
+                      <ManagerLink manager={row.manager} />
+                    </TableCell>
+                    {divisions && !byDivision && <TableCell className="text-muted-foreground">{division.get(row.manager)?.name}</TableCell>}
+                    <TableCell className={right}>{`${row.wins}-${row.losses}`}</TableCell>
+                    {divisions && <TableCell className={right}>{division.get(row.manager)?.record}</TableCell>}
+                    <TableCell className={right}>{fmt(row.pf)}</TableCell>
+                    <TableCell className={cn(right, phoneHidden)}>{fmt(row.pa)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-0.5">
+                        {row.results.map((r, w) =>
+                          r == null ? null : <Chip key={w} result={r} label={story.weekLabels[w]} />
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </React.Fragment>
             ))}
-          </div>,
-        ])}
-      />
+          </TableBody>
+        </Table>
+      </div>
     </Panel>
   )
 }
@@ -74,6 +125,7 @@ export function WeeklyScores({
         managers={story.managers}
         highlighted={highlighted}
         extra={{ key: "median", label: "League median" }}
+        endLabels={false}
       />
       <Legend
         items={[{ label: "League median", color: SERIES.orange }, ...highlightLegend(highlighted)]}
@@ -166,9 +218,15 @@ export function WeeklyAwards({ story, highlighted }: { story: Story; highlighted
     <Panel
       title="Weekly awards"
       description="The record book's categories, week by week. Sort a column to find the season's best."
-      method="Every week of the season counts, playoffs and consolation games included; double weeks are marked. Hide the categories you don't need with Columns."
+      method="Every week of the season counts, playoffs and consolation games included; double weeks are marked. Highest and lowest combined, best score in a loss and worst score in a win start hidden; add them with Columns."
     >
-      <DataTable columns={columns} data={story.awards} />
+      <DataTable
+        columns={columns}
+        data={story.awards}
+        // The other four start hidden so the table fits without scrolling sideways
+        initialColumnVisibility={{ "Highest combined": false, "Lowest combined": false, "Best score in a loss": false, "Worst score in a win": false }}
+        phoneHidden={["Low score", "Closest game"]}
+      />
     </Panel>
   )
 }

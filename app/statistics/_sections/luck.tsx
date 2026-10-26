@@ -3,13 +3,13 @@
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from "recharts"
 import { createColumnHelper } from "@tanstack/react-table"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { DataTable } from "../_components/data-table"
 import { type DataTableFeatures } from "../_components/data-table-features"
 import { HighlightPicker, emphasis, useHighlight } from "../_components/highlight"
 import { ScopeToggle, Toolbar, scopeLabel, useScope } from "../_components/scope"
 import { SortableHeader, numeric } from "../_components/table-helpers"
-import { Legend, Panel, SERIES, Section, SimpleTable, fmt, pctFmt } from "../_components/ui"
+import { Chart, Legend, ManagerLink, Panel, SERIES, Section, SimpleTable, fmt, pctFmt } from "../_components/ui"
 import type { scheduleSwap } from "../_lib/more-stats"
 import { CLOSE_GAME, type LuckRow, type Scope } from "../_lib/stats"
 import { ScheduleSwap } from "./schedule-swap"
@@ -23,6 +23,7 @@ const columns = columnHelper.columns([
     header: ({ column }) => <SortableHeader column={column} title="Manager" />,
     enableHiding: false,
     filterFn: "excludes",
+    cell: ({ getValue }) => <ManagerLink manager={String(getValue())} />,
   }),
   ...keys.map((key) =>
     columnHelper.accessor(key, {
@@ -67,11 +68,9 @@ export function LuckView({
   const chart = [...rows].sort((a, b) => b.Luck - a.Luck)
   const managers = rows.map((r) => r.player)
   const [highlighted, setHighlighted] = useHighlight(managers)
-  // Schedules only swap within one season: it follows the page's season, and has its own choice
-  // of season while the page shows all-time
-  const swapYears = Object.keys(swaps).map(Number).sort((a, b) => b - a)
-  const [swapPick, setSwapPick] = React.useState(swapYears[0])
-  const swapYear = scope === "all" ? swapPick : scope
+  // Schedules only swap within one season: it follows the page's season, and shows the latest
+  // one while the page shows all-time
+  const swapYear = scope === "all" ? Math.max(...Object.keys(swaps).map(Number)) : scope
   const close = rows
     .map((r) => {
       const [w, l] = r.Close.split("-").map(Number)
@@ -95,7 +94,7 @@ export function LuckView({
           description="Wins above or below what each manager's scores deserved."
           method="Luck is actual wins minus expected wins. Each week is worth the share of the other teams you outscored as an expected win: the week's top score is worth 1, the lowest 0, and a middle score about 0.5. Regular season only."
         >
-          <ChartContainer config={config} className="aspect-auto w-full" style={{ height: chart.length * 30 + 40 }}>
+          <Chart config={config} className="aspect-auto w-full" style={{ height: chart.length * 30 + 40 }}>
             <BarChart data={chart} layout="vertical" barCategoryGap={4} margin={{ left: 8, right: 16 }}>
               <CartesianGrid horizontal={false} />
               <XAxis type="number" tickLine={false} axisLine={false} />
@@ -115,7 +114,7 @@ export function LuckView({
                 ))}
               </Bar>
             </BarChart>
-          </ChartContainer>
+          </Chart>
           <Legend items={[{ label: "Luckier than expected", color: SERIES.blue }, { label: "Unluckier than expected", color: SERIES.red }]} />
         </Panel>
         <div className="grid gap-4 lg:grid-cols-2">
@@ -159,11 +158,7 @@ export function LuckView({
         </Panel>
       </Section>
       <Section title="What if">
-        <ScheduleSwap
-          swap={swaps[swapYear]}
-          highlighted={highlighted}
-          controls={scope === "all" && <ScopeToggle value={swapPick} options={swapYears} onChange={setSwapPick} />}
-        />
+        <ScheduleSwap swap={swaps[swapYear]} highlighted={highlighted} latestOnly={scope === "all"} />
       </Section>
     </div>
   )

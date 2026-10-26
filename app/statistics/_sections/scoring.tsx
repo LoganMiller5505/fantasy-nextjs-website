@@ -1,9 +1,8 @@
 "use client"
 
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { createColumnHelper } from "@tanstack/react-table"
 import {
-  ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
@@ -12,12 +11,12 @@ import {
 } from "@/components/ui/chart"
 import { DataTable } from "../_components/data-table"
 import { type DataTableFeatures } from "../_components/data-table-features"
-import { HighlightPicker, emphasis, useHighlight } from "../_components/highlight"
+import { HighlightPicker, useHighlight } from "../_components/highlight"
 import { ScopeToggle, Toolbar, scopeLabel, useScope } from "../_components/scope"
 import { SortableHeader, numeric, points } from "../_components/table-helpers"
-import { HeatTable, Panel, SERIES, Section, fmt, pctFmt } from "../_components/ui"
+import { Chart, DotPlot, HeatTable, ManagerLink, Panel, SERIES, Section, fmt, pctFmt } from "../_components/ui"
 import type { ConsistencyRow } from "../_lib/more-stats"
-import type { Scope, ScoringRow, scoringRanks, scoringTrend, strongFinish } from "../_lib/stats"
+import { FEW_GAMES, type Scope, type ScoringRow, type scoringRanks, type scoringTrend, type strongFinish } from "../_lib/stats"
 import { Consistency } from "./consistency"
 import { StrongFinish } from "./season-story"
 
@@ -31,6 +30,7 @@ const columns = columnHelper.columns([
     header: ({ column }) => <SortableHeader column={column} title="Manager" />,
     enableHiding: false,
     filterFn: "excludes",
+    cell: ({ getValue }) => <ManagerLink manager={String(getValue())} />,
   }),
   ...keys.map((key) =>
     columnHelper.accessor(key, {
@@ -45,43 +45,41 @@ const columns = columnHelper.columns([
   ),
 ])
 
-const config = {
-  ppg: { label: "Points for / game", theme: SERIES.blue },
-  papg: { label: "Points against / game", theme: SERIES.orange },
-} satisfies ChartConfig
-
 // Seasons take categorical slots in order, oldest first, so a season keeps its colour
 const SEASON_COLORS = [SERIES.blue, SERIES.orange, SERIES.aqua]
 
+// A dumbbell per manager: points for and against per game, joined by a line, on an axis that only
+// spans the scores in play so a few points' gap shows
 function PointsForAgainst({ rows, scope, highlighted }: { rows: ScoringRow[]; scope: Scope; highlighted: string | null }) {
-  const perGame = [...rows]
-    .sort((a, b) => b.PPG - a.PPG)
-    .map((r) => ({ manager: r.player, ppg: r.PPG, papg: r["PA/G"] }))
-  // The axis starts just under the lowest bar, so 10-20 point gaps are easy to see
-  const floor = Math.floor((Math.min(...perGame.flatMap((r) => [r.ppg, r.papg])) - 10) / 10) * 10
+  // Biggest edge (points for less points against, per game) first
+  const perGame = [...rows].sort((a, b) => b.PPG - b["PA/G"] - (a.PPG - a["PA/G"]))
 
   return (
     <Panel
       title={`Points for vs against, per game · ${scopeLabel(scope)}`}
-      description="Sorted by points for. Bars further apart = a bigger edge."
-      method={`The axis starts at ${floor}, not zero, so the gaps between the bars stand out. Double weeks are left out.`}
+      description="Biggest edge first. A blue dot right of the orange one is outscoring opponents; the longer the line, the bigger the edge."
+      method="The axis spans only the scores in play, not from zero, so a few points' difference shows. Double weeks are left out."
     >
-      <ChartContainer config={config} className="aspect-auto h-80 w-full">
-        <BarChart data={perGame} barGap={2} barCategoryGap={8} margin={{ top: 8, right: 8, left: -12 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis dataKey="manager" tickLine={false} axisLine={false} interval={0} angle={-40} textAnchor="end" height={56} />
-          <YAxis tickLine={false} axisLine={false} domain={[floor, "auto"]} allowDataOverflow allowDecimals={false} width={48} />
-          <ChartTooltip cursor={false} content={<ChartTooltipContent formatter={(v, name) => `${config[name as keyof typeof config].label} ${fmt(Number(v))}`} />} />
-          <ChartLegend content={<ChartLegendContent />} verticalAlign="top" itemSorter={null} />
-          {(["ppg", "papg"] as const).map((key) => (
-            <Bar key={key} dataKey={key} fill={`var(--color-${key})`} radius={[4, 4, 0, 0]}>
-              {perGame.map((r) => (
-                <Cell key={r.manager} fillOpacity={emphasis(r.manager, highlighted)} />
-              ))}
-            </Bar>
-          ))}
-        </BarChart>
-      </ChartContainer>
+      <DotPlot
+        connect
+        trailingLabel="Edge"
+        series={[
+          { key: "pf", label: "Points for / game", color: SERIES.blue },
+          { key: "pa", label: "Points against / game", color: SERIES.orange },
+        ]}
+        rows={perGame.map((r) => {
+          const diff = r.PPG - r["PA/G"]
+          return {
+            key: r.player,
+            label: r.player,
+            values: { pf: r.PPG, pa: r["PA/G"] },
+            summary: `${fmt(r.PPG)} for, ${fmt(r["PA/G"])} against per game`,
+            trailing: `${diff > 0 ? "+" : ""}${fmt(diff, 1)}`,
+            highlighted: r.player === highlighted,
+            faded: highlighted != null && r.player !== highlighted,
+          }
+        })}
+      />
     </Panel>
   )
 }
@@ -97,7 +95,7 @@ function LeagueTrend({ trend }: { trend: ReturnType<typeof scoringTrend> }) {
       description="Average score across the league each week, one line per season."
       method="Double weeks are left out, so 2024's playoff rounds don't appear."
     >
-      <ChartContainer config={trendConfig} className="aspect-auto h-72 w-full">
+      <Chart config={trendConfig} className="aspect-auto h-72 w-full">
         <LineChart data={trend.data} margin={{ top: 8, right: 12, left: -12 }}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} />
@@ -105,10 +103,10 @@ function LeagueTrend({ trend }: { trend: ReturnType<typeof scoringTrend> }) {
           <ChartTooltip content={<ChartTooltipContent />} />
           <ChartLegend content={<ChartLegendContent />} verticalAlign="top" itemSorter={null} />
           {trend.years.map((y) => (
-            <Line key={y} dataKey={y} type="linear" stroke={`var(--color-${y})`} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+            <Line key={y} dataKey={y} type="linear" stroke={`var(--color-${y})`} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />
           ))}
         </LineChart>
-      </ChartContainer>
+      </Chart>
     </Panel>
   )
 }
@@ -144,9 +142,6 @@ function ScoringRanks({ data, scope, highlighted }: { data: ReturnType<typeof sc
   )
 }
 
-// Fewer games than this and an all-time row is muted: too few to compare with full careers
-const FEW_GAMES = 10
-
 // This scope's scoring first, then how steady it was, then views across every season
 export function ScoringView({
   initialScope,
@@ -179,13 +174,15 @@ export function ScoringView({
       <Section title="Scoring">
         <Panel
           title={`Scoring · ${scopeLabel(scope)}`}
-          description={`Points, record and margin for every manager.${scope === "all" ? ` Managers with fewer than ${FEW_GAMES} games are greyed out.` : ""}`}
+          description={`Points, record and margin for every manager.${scope === "all" ? ` Managers with fewer than ${FEW_GAMES} games are greyed out and listed last.` : ""}`}
           method="Record, PF and PA count every game, consolation games included. PPG and PA/G skip double weeks, which cover two NFL weeks. Top and bottom weeks are regular-season weeks with the league's highest or lowest score."
         >
           <DataTable
             columns={columns}
             data={scoped}
             initialSorting={[{ id: "PPG", desc: true }]}
+            initialColumnVisibility={{ "Reg W-L": false, "Top weeks": false, "Bottom weeks": false }}
+            phoneHidden={["GP", "PF", "PA", "PA/G", "Diff"]}
             highlight={(r) => r.player === highlighted}
             muted={(r) => scope === "all" && r.GP < FEW_GAMES}
           />

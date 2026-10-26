@@ -3,9 +3,9 @@
 import { emphasis } from "../_components/highlight"
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 import { Badge } from "@/components/ui/badge"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import type { playoffRace } from "../_lib/playoff-race"
-import { HeatTable, HighlightLines, Legend, PICK_HINT, Panel, SERIES, highlightLegend } from "../_components/ui"
+import { Chart, HeatTable, HighlightLines, Legend, PICK_HINT, Panel, SERIES, highlightLegend } from "../_components/ui"
 
 type Race = ReturnType<typeof playoffRace>
 
@@ -21,13 +21,14 @@ export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; hi
       : "Seeds go to the best records, with points for breaking ties."
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    // Stacked: the finishing-seed grid needs the full width to show every seed without scrolling
+    <div className="grid gap-4">
         <Panel
           title={`Playoff odds, ${race.year}`}
           description={`Chance of finishing in one of the ${race.spots} playoff spots, with ${race.weeksLeft} regular-season weeks left.`}
           method={`The rest of the season is played out ${race.runs.toLocaleString("en-US")} times. Each manager's simulated scores blend their own scores this season with the league's: early on they lean on the league, and by week six it's half and half. Each run also allows for not knowing how good a team really is, and that allowance shrinks as weeks are played, so one big week can't make anyone a lock. ${seeding}`}
         >
-          <ChartContainer config={config} className="aspect-auto w-full" style={{ height: race.rows.length * 30 + 40 }}>
+          <Chart config={config} className="aspect-auto w-full" style={{ height: race.rows.length * 30 + 40 }}>
             <BarChart data={race.rows} layout="vertical" barCategoryGap={4} margin={{ left: 8, right: 40 }}>
               <CartesianGrid horizontal={false} />
               <XAxis type="number" domain={[0, 100]} unit="%" tickLine={false} axisLine={false} />
@@ -47,7 +48,7 @@ export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; hi
                 <LabelList dataKey="playoffs" position="right" formatter={(v) => odds(Number(v))} className="fill-foreground" fontSize={11} />
               </Bar>
             </BarChart>
-          </ChartContainer>
+          </Chart>
         </Panel>
         <Panel
           title="Where they finish"
@@ -148,9 +149,9 @@ export function DivisionOddsByWeek({ race, highlighted }: { race: NonNullable<Ra
           // Only the highlighted manager's own division steps back around them
           const picked = highlighted != null && managers.includes(highlighted) ? highlighted : null
           return (
-            <div key={division} className="grid gap-2">
+            <div key={division} className="grid min-w-0 gap-2">
               <h4 className="text-sm font-medium">{division}</h4>
-              <ChartContainer config={config} className="aspect-auto h-48 w-full">
+              <Chart config={config} className="aspect-auto h-48 w-full">
                 <LineChart data={race.divisionByWeek} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(w: string) => w.replace("After ", "")} />
@@ -169,7 +170,7 @@ export function DivisionOddsByWeek({ race, highlighted }: { race: NonNullable<Ra
                     />
                   ))}
                 </LineChart>
-              </ChartContainer>
+              </Chart>
               <Legend items={managers.map((m, i) => ({ label: m, color: LINE_COLORS[i % LINE_COLORS.length] }))} />
             </div>
           )

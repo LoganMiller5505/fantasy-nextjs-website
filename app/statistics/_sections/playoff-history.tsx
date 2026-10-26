@@ -5,7 +5,7 @@ import { DataTable } from "../_components/data-table"
 import { SortableHeader, numeric } from "../_components/table-helpers"
 import { type DataTableFeatures } from "../_components/data-table-features"
 import type { BracketGame, ResumeRow, seedTable } from "../_lib/playoffs"
-import { Panel, SimpleTable, fmt, pctFmt } from "../_components/ui"
+import { ManagerLink, Panel, SimpleTable, fmt, pctFmt } from "../_components/ui"
 
 const columnHelper = createColumnHelper<DataTableFeatures, ResumeRow>()
 const keys = ["Seasons", "Apps", "Titles", "Finals", "Podiums", "Bracket W-L", "Win%", "Byes", "Avg seed", "Best"] as const
@@ -16,6 +16,7 @@ const columns = columnHelper.columns([
     header: ({ column }) => <SortableHeader column={column} title="Manager" />,
     enableHiding: false,
     filterFn: "excludes",
+    cell: ({ getValue }) => <ManagerLink manager={String(getValue())} />,
   }),
   ...keys.map((key) =>
     columnHelper.accessor(key, {
@@ -36,16 +37,16 @@ export function PlayoffResumes({ rows, highlighted }: { rows: ResumeRow[]; highl
     <Panel
       title="Playoff résumés"
       description="Each manager's record once the regular season is over."
-      method="Finished seasons only. Apps are championship-bracket appearances; podiums are top-three finishes. Bracket W-L leaves out 3rd-place and consolation games. Byes are first-round byes."
+      method="Finished seasons only. Apps are championship-bracket appearances; podiums are top-three finishes. Bracket W-L leaves out 3rd-place and consolation games. Byes are first-round byes. Seasons, Podiums and Byes start hidden; add them back with Columns."
     >
-      <DataTable columns={columns} data={rows} highlight={(r) => r.player === highlighted} />
+      <DataTable columns={columns} data={rows} initialColumnVisibility={{ Seasons: false, Podiums: false, Byes: false }} highlight={(r) => r.player === highlighted} />
     </Panel>
   )
 }
 
 export function SeedsAndUpsets({ seeds, years, upsets }: { seeds: ReturnType<typeof seedTable>; years: number[]; upsets: BracketGame[] }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4">
       <Panel title="Seed by season" description="Who held each playoff seed and how far they went.">
         <SimpleTable
           head={["Seed", ...years.map(String), "Bracket W-L", "Titles"]}

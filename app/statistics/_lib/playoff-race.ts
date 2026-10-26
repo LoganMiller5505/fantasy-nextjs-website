@@ -29,7 +29,8 @@ function normal(rand: () => number) {
 const mean = (xs: number[]) => sum(xs) / xs.length
 const sd = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)))
 
-export function playoffRace(league: League, sides: Side[], results: SeasonResult[]) {
+// `history`: also rerun the odds as they stood after each week played (Outlook's trend charts)
+export function playoffRace(league: League, sides: Side[], results: SeasonResult[], history = true) {
   const year = latestYear(league)
   if (!results.find((r) => r.year === year)?.inProgress) return null
   const regularWeeks = new Set(league.weeks.filter((w) => w.year === year && !w.is_playoff).map((w) => w.week_no))
@@ -60,7 +61,7 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
   // Plays out the regular season from what's known after `played`: each manager's weekly score is
   // drawn around their average so far. The generator restarts from the same seed every time, so
   // the latest week's odds match the ones shown elsewhere on the page.
-  type Game = { manager: string; opponent: string }
+  type Game = { manager: string; opponent: string; week_no: number }
   const simulate = (played: Side[], remaining: Game[]) => {
     const wins = new Map(managers.map((m) => [m, played.filter((s) => s.manager === m && s.win).length]))
     const pf = new Map(managers.map((m) => [m, sum(played.filter((s) => s.manager === m).map((s) => s.pf))]))
@@ -90,7 +91,13 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     const seedCounts = new Map(managers.map((m) => [m, new Array<number>(managers.length).fill(0)]))
     const winTotals = new Map(managers.map((m) => [m, 0]))
     const divisionTitles = new Map(managers.map((m) => [m, 0]))
+    // Next week's games: how often each manager wins or loses theirs, and how often they make the
+    // playoffs after each, for the odds with a win and with a loss
+    const nextWeek = Math.min(...remaining.map((g) => g.week_no))
+    const after = new Map(managers.map((m) => [m, { won: 0, wonIn: 0, lost: 0, lostIn: 0 }]))
     for (let run = 0; run < RUNS; run++) {
+      const nextWinners: string[] = []
+      const nextLosers: string[] = []
       const w = new Map(wins)
       const p = new Map(pf)
       const level = new Map(managers.map((m) => [m, model.get(m)!.mean + model.get(m)!.doubt * z()]))
@@ -101,29 +108,48 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
         p.set(g.opponent, p.get(g.opponent)! + b)
         const winner = a > b ? g.manager : g.opponent
         w.set(winner, w.get(winner)! + 1)
+        if (g.week_no === nextWeek) {
+          nextWinners.push(winner)
+          nextLosers.push(winner === g.manager ? g.opponent : g.manager)
+        }
       }
-      seedOrder(w, p).forEach((m, i) => {
+      const order = seedOrder(w, p)
+      order.forEach((m, i) => {
         seedCounts.get(m)![i]++
         if (i < divisions.length) divisionTitles.set(m, divisionTitles.get(m)! + 1)
       })
+      const made = new Set(order.slice(0, spots))
+      for (const m of nextWinners) {
+        after.get(m)!.won++
+        if (made.has(m)) after.get(m)!.wonIn++
+      }
+      for (const m of nextLosers) {
+        after.get(m)!.lost++
+        if (made.has(m)) after.get(m)!.lostIn++
+      }
       for (const m of managers) winTotals.set(m, winTotals.get(m)! + w.get(m)!)
     }
     const playoffOdds = (m: string) => round((sum(seedCounts.get(m)!.slice(0, spots)) / RUNS) * 100, 1)
     const divisionOdds = (m: string) => round((divisionTitles.get(m)! / RUNS) * 100, 1)
-    return { seedCounts, winTotals, playoffOdds, divisionOdds }
+    // Null for a manager without a game next week (or, in the odd case, never on one side of it)
+    const ifResult = (m: string) => {
+      const a = after.get(m)!
+      return a.won && a.lost ? { win: round((a.wonIn / a.won) * 100, 1), loss: round((a.lostIn / a.lost) * 100, 1) } : null
+    }
+    return { seedCounts, winTotals, playoffOdds, divisionOdds, ifResult }
   }
 
   const season = sides.filter((s) => s.year === year && !s.playoff)
   const wins = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && s.win).length]))
   const losses = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && !s.win).length]))
   const pf = new Map(managers.map((m) => [m, sum(season.filter((s) => s.manager === m).map((s) => s.pf))]))
-  const { seedCounts, winTotals, divisionOdds } = simulate(season, remaining)
+  const { seedCounts, winTotals, divisionOdds, ifResult } = simulate(season, remaining)
 
   // The same odds as they stood after each week played so far: everything after that week is
   // treated as unplayed, and the model only knows the scores up to then
   const schedule = league.games.filter((g) => g.year === year && regularWeeks.has(g.week_no) && g.manager < g.opponent)
   const playedWeeks = [...new Set(season.map((s) => s.week_no))].sort((a, b) => a - b)
-  const history = playedWeeks.map((week) => {
+  const byWeek = (history ? playedWeeks : []).map((week) => {
     const then = simulate(
       season.filter((s) => s.week_no <= week),
       schedule.filter((g) => g.week_no > week)
@@ -170,6 +196,8 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
         divisionTitle: divisionOdds(m),
         seeds: seeds.slice(0, spots),
         missed: round(sum(seeds.slice(spots)), 1),
+        // Playoff odds after winning and after losing next week's game
+        next: ifResult(m),
         status: status(m),
       }
     })
@@ -184,8 +212,8 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     weeksLeft,
     rows,
     // One point per week played: { week: "After W3", Logan: 64.2, ... }
-    playoffsByWeek: history.map((h) => h.playoffs),
-    divisionByWeek: history.map((h) => h.division),
+    playoffsByWeek: byWeek.map((h) => h.playoffs),
+    divisionByWeek: byWeek.map((h) => h.division),
     divisions: divisions.map((d) => ({ division: d, managers: managers.filter((m) => division.get(m) === d) })),
   }
 }

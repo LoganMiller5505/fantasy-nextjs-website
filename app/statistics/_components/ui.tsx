@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import Link from "next/link"
+import { CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 import { ChevronDown } from "lucide-react"
 import { cn } from "cn"
 import { Button } from "@/components/ui/button"
@@ -42,6 +43,38 @@ export const HIGHLIGHT_ROW =
 
 // Panels inside a Section title themselves one level below the section's heading
 const HeadingLevel = React.createContext<2 | 3>(2)
+// A panel's title and description, which name the charts inside it for screen readers
+const ChartName = React.createContext<string | undefined>(undefined)
+
+// Matches a media query; false on the server and on the first client render
+export function useMediaQuery(query: string) {
+  return React.useSyncExternalStore(
+    (onChange) => {
+      const list = window.matchMedia(query)
+      list.addEventListener("change", onChange)
+      return () => list.removeEventListener("change", onChange)
+    },
+    () => window.matchMedia(query).matches,
+    () => false
+  )
+}
+export const useWide = () => useMediaQuery("(min-width: 640px)")
+
+// A manager's name, linking to their page
+export function ManagerLink({ manager, children }: { manager: string; children?: React.ReactNode }) {
+  return (
+    <Link href={`/statistics/managers/${encodeURIComponent(manager)}`} className="underline-offset-2 hover:underline">
+      {children ?? manager}
+    </Link>
+  )
+}
+
+// A chart, announced as one image named after its panel. Recharts' own markup only offers the tick
+// text, which says nothing on its own.
+export function Chart({ label, ...props }: React.ComponentProps<typeof ChartContainer> & { label?: string }) {
+  const name = React.useContext(ChartName)
+  return <ChartContainer role="img" aria-label={label ?? name} {...props} />
+}
 
 // A group of panels under a heading, so long pages have landmarks to scan and jump between
 export function Section({
@@ -88,8 +121,9 @@ export function Panel({
   children: React.ReactNode
 }) {
   const Heading = React.useContext(HeadingLevel) === 3 ? "h3" : "h2"
+  const chartName = typeof description === "string" ? `${title}. ${description}` : title
   return (
-    <Card id={id} className={cn("min-w-0 scroll-mt-32", className)}>
+    <Card id={id} className={cn("min-w-0 scroll-mt-36", className)}>
       <CardHeader>
         <CardTitle>
           <Heading>{title}</Heading>
@@ -108,7 +142,9 @@ export function Panel({
       </CardHeader>
       <CardContent className="grid min-w-0 gap-3">
         {controls && <div className="flex flex-wrap items-center gap-2">{controls}</div>}
-        <div className="min-w-0">{children}</div>
+        <div className="min-w-0">
+          <ChartName.Provider value={chartName}>{children}</ChartName.Provider>
+        </div>
       </CardContent>
     </Card>
   )
@@ -140,6 +176,7 @@ export function Picker<T extends string | number>({
   format = String,
   placeholder,
   size = "default",
+  className,
 }: {
   value: T | null
   options: readonly T[]
@@ -148,11 +185,12 @@ export function Picker<T extends string | number>({
   format?: (value: T) => string
   placeholder?: string
   size?: "sm" | "default"
+  className?: string
 }) {
   const items = options.map((o) => ({ value: o, label: format(o) }))
   return (
     <Select items={items} value={value} onValueChange={(v) => v != null && onChange(v as T)}>
-      <SelectTrigger aria-label={label} size={size} className="min-w-28">
+      <SelectTrigger aria-label={label} size={size} className={className ?? "min-w-28"}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -229,10 +267,48 @@ export function SimpleTable({
   )
 }
 
+const PLOT_HEIGHT = 250 // the h-72 chart less its top margin and x axis
+const LABEL_GAP = 13
+
+// Where to draw each line's name beside its last (or first) point: at the point, unless that
+// would overlap the name above it, in which case it's pushed down. Returns pixel offsets. The
+// scale is estimated from the data, which is close enough to keep names from colliding.
+function labelOffsets(
+  data: Record<string, string | number>[],
+  keys: string[],
+  end: "first" | "last",
+  domain: [number, number] | undefined,
+  reversed: boolean
+) {
+  const values = data.flatMap((d) => keys.map((k) => d[k]).filter((v): v is number => typeof v === "number"))
+  const [lo, hi] = domain ?? [Math.min(...values), Math.max(...values)]
+  const toPx = (v: number) => ((reversed ? v - lo : hi - v) / (hi - lo || 1)) * PLOT_HEIGHT
+  const points = keys.flatMap((key) => {
+    const indices = data.flatMap((d, i) => (typeof d[key] === "number" ? [i] : []))
+    if (!indices.length) return []
+    const index = end === "last" ? indices[indices.length - 1] : indices[0]
+    return [{ key, index, px: toPx(data[index][key] as number) }]
+  })
+  const offsets = new Map<string, { index: number; dy: number }>()
+  // Only names at the same x can collide (a line can end early, e.g. a former manager)
+  const byIndex = new Map<number, typeof points>()
+  for (const p of points) byIndex.set(p.index, [...(byIndex.get(p.index) ?? []), p])
+  for (const group of byIndex.values()) {
+    group.sort((a, b) => a.px - b.px)
+    let prev = -Infinity
+    const placed = group.map((p) => (prev = Math.max(p.px, prev + LABEL_GAP)))
+    // Pushed off the bottom: slide the stack back up
+    const overflow = Math.max(0, placed[placed.length - 1] - PLOT_HEIGHT)
+    group.forEach((p, i) => offsets.set(p.key, { index: p.index, dy: placed[i] - overflow - p.px }))
+  }
+  return offsets
+}
+
 // One line per manager: the picked one in blue on top, everyone else as thin grey context.
 // The tooltip reports the picked manager, plus whichever grey line the pointer is on, since
 // twelve rows of numbers go unread. Pointing at or tapping a grey line shows whose it is; only
-// the Highlight picker changes who's highlighted, so a stray tap can't.
+// the Highlight picker changes who's highlighted, so a stray tap can't. From sm up, each line is
+// named at its end, and at its start too with `startLabels` (a bump chart, whose y axis it replaces).
 export function HighlightLines({
   data,
   xKey,
@@ -244,6 +320,8 @@ export function HighlightLines({
   unit = "",
   format,
   extra,
+  startLabels = false,
+  endLabels = true,
 }: {
   data: Record<string, string | number>[]
   xKey: string
@@ -257,8 +335,12 @@ export function HighlightLines({
   format?: (value: number) => string
   // An additional named series drawn in orange (e.g. the league median)
   extra?: { key: string; label: string }
+  startLabels?: boolean
+  // Names at the ends of the lines; off where they crowd the chart
+  endLabels?: boolean
 }) {
   const [hovered, setHovered] = React.useState<string | null>(null)
+  const labelled = useWide() && endLabels
   const config = {
     ...(highlighted != null && { [highlighted]: { label: highlighted, theme: SERIES.blue } }),
     ...(extra && { [extra.key]: { label: extra.label, theme: SERIES.orange } }),
@@ -269,13 +351,59 @@ export function HighlightLines({
     .sort((a, b) => Number(a === hovered) - Number(b === hovered))
   const shown = new Set([highlighted, hovered, extra?.key])
 
+  const keys = [...managers, ...(extra ? [extra.key] : [])]
+  const ends = labelOffsets(data, keys, "last", domain, reversed)
+  const starts = labelOffsets(data, keys, "first", domain, reversed)
+  const showStart = labelled && startLabels
+  // A line's name, drawn beside its first or last point
+  const name = (key: string, text: string, tone: "muted" | "strong" | "series") => {
+    const Label = (props: { x?: unknown; y?: unknown; index?: number }) => {
+      const x = Number(props.x)
+      const y = Number(props.y)
+      const at = (spot: Map<string, { index: number; dy: number }>, anchor: "start" | "end", dx: number) => {
+        const p = spot.get(key)
+        if (!p || p.index !== props.index) return null
+        return (
+          <text
+            x={x + dx}
+            y={y + p.dy}
+            dy="0.32em"
+            textAnchor={anchor}
+            fontSize={11}
+            className={tone === "muted" ? "fill-muted-foreground" : "fill-foreground"}
+            fill={tone === "series" ? `var(--color-${key})` : undefined}
+            fontWeight={tone === "muted" ? 400 : 600}
+          >
+            {text}
+          </text>
+        )
+      }
+      return (
+        <g>
+          {at(ends, "start", 6)}
+          {showStart && at(starts, "end", -6)}
+        </g>
+      )
+    }
+    return labelled ? <LabelList dataKey={key} content={Label} /> : null
+  }
+
   return (
-    <ChartContainer config={config} className="aspect-auto h-72 w-full">
+    <Chart config={config} className="aspect-auto h-72 w-full">
       {/* Formatted ticks like "1.000" are wider, so they get the full left margin */}
-      <LineChart data={data} margin={{ top: 8, right: 12, left: format ? 0 : -12, bottom: 0 }}>
+      <LineChart
+        data={data}
+        margin={{
+          top: 8,
+          right: labelled ? 64 : 12,
+          left: showStart ? 64 : format ? 0 : -12,
+          bottom: 0,
+        }}
+      >
         <CartesianGrid vertical={false} />
         <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} />
         <YAxis
+          hide={showStart}
           tickLine={false}
           axisLine={false}
           reversed={reversed}
@@ -316,7 +444,9 @@ export function HighlightLines({
             dot={false}
             activeDot={false}
             isAnimationActive={false}
-          />
+          >
+            {name(m, m, m === hovered ? "strong" : "muted")}
+          </Line>
         ))}
         {/* Invisible wide strokes over the grey lines, so a 1px line is easy to point at */}
         {others.map((m) => (
@@ -339,7 +469,9 @@ export function HighlightLines({
           />
         ))}
         {extra && (
-          <Line dataKey={extra.key} type="linear" stroke={`var(--color-${extra.key})`} strokeWidth={2} dot={false} />
+          <Line dataKey={extra.key} type="linear" stroke={`var(--color-${extra.key})`} strokeWidth={2} dot={false} isAnimationActive={false}>
+            {name(extra.key, extra.label === "League median" ? "Median" : extra.label, "series")}
+          </Line>
         )}
         {highlighted != null && (
           <Line
@@ -349,10 +481,107 @@ export function HighlightLines({
             strokeWidth={2.5}
             dot={{ r: 3 }}
             activeDot={{ r: 5 }}
-          />
+            // Drawing in would restart whenever the labels or the width change, leaving a half-drawn line
+            isAnimationActive={false}
+          >
+            {name(highlighted, highlighted, "series")}
+          </Line>
         )}
       </LineChart>
-    </ChartContainer>
+    </Chart>
+  )
+}
+
+type Color = { light: string; dark: string }
+const dot = (color: Color) => ({ "--dot": color.light, "--dot-dark": color.dark }) as React.CSSProperties
+
+// Dots on a shared axis, one row per item: for comparing a few values each where the differences
+// are small next to the values themselves, so the axis spans only the values in play (in `step`
+// increments) instead of starting at zero. With `connect`, a row's dots are joined by a line, as
+// a dumbbell. Plain HTML, so names and numbers stay legible at phone width.
+export function DotPlot({
+  rows,
+  series,
+  connect = false,
+  step = 10,
+  trailingLabel,
+}: {
+  rows: {
+    key: string
+    label: React.ReactNode
+    values: Record<string, number>
+    // Read out in place of the dots, which are drawn for sighted readers only
+    summary: string
+    trailing?: React.ReactNode
+    highlighted?: boolean
+    faded?: boolean
+  }[]
+  series: { key: string; label: string; color: Color }[]
+  connect?: boolean
+  step?: number
+  trailingLabel?: string
+}) {
+  const values = rows.flatMap((r) => Object.values(r.values))
+  const lo = Math.floor(Math.min(...values) / step) * step
+  const hi = Math.ceil(Math.max(...values) / step) * step
+  const at = (x: number) => `${((x - lo) / (hi - lo || 1)) * 100}%`
+  const ticks = Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, i) => lo + i * step)
+  const columns = trailingLabel ? "grid-cols-[4.5rem_minmax(0,1fr)_3.5rem]" : "grid-cols-[4.5rem_minmax(0,1fr)]"
+
+  return (
+    <div className="grid gap-2">
+      <Legend items={series.map((s) => ({ label: s.label, color: s.color }))} />
+      <ul className="grid gap-0.5">
+        {rows.map((r) => {
+          const xs = Object.values(r.values)
+          return (
+            <li
+              key={r.key}
+              className={cn("grid items-center gap-2 rounded-[4px] px-1 py-0.5 text-xs", columns, r.highlighted && HIGHLIGHT_ROW, r.faded && "opacity-60")}
+            >
+              <span className="truncate">{r.label}</span>
+              <span className="sr-only">{r.summary}</span>
+              <span className="relative h-5" aria-hidden>
+                {ticks.map((t) => (
+                  <span key={t} className="bg-border/60 absolute inset-y-0 w-px" style={{ left: at(t) }} />
+                ))}
+                {connect && (
+                  <span
+                    className="bg-muted-foreground/50 absolute top-1/2 h-0.5 -translate-y-1/2"
+                    style={{ left: at(Math.min(...xs)), width: `calc(${at(Math.max(...xs))} - ${at(Math.min(...xs))})` }}
+                  />
+                )}
+                {series.map((sr) =>
+                  r.values[sr.key] == null ? null : (
+                    <span
+                      key={sr.key}
+                      className="absolute top-1/2 size-2.5 -translate-1/2 rounded-full bg-(--dot) ring-2 ring-(--card) dark:bg-(--dot-dark)"
+                      style={{ left: at(r.values[sr.key]), ...dot(sr.color) }}
+                    />
+                  )
+                )}
+              </span>
+              {trailingLabel && <span className="text-right tabular-nums">{r.trailing}</span>}
+            </li>
+          )
+        })}
+      </ul>
+      <div className={cn("grid gap-2 px-1 text-[0.7rem]", columns)} aria-hidden>
+        <span />
+        <span className="text-muted-foreground relative h-4">
+          {ticks.map((t, i) => (
+            <span
+              key={t}
+              className={cn("absolute tabular-nums", i === 0 ? "" : i === ticks.length - 1 ? "-translate-x-full" : "-translate-x-1/2")}
+              style={{ left: at(t) }}
+            >
+              {t}
+            </span>
+          ))}
+        </span>
+        {trailingLabel && <span className="text-muted-foreground text-right">{trailingLabel}</span>}
+      </div>
+    </div>
   )
 }
 
@@ -481,7 +710,8 @@ function HeatCell({
     "aria-label": cell.title ?? (empty ? "No value" : String(cell.text)),
     onFocus,
     className: cn(
-      "flex h-7 w-full min-w-11 items-center justify-center rounded-[4px] px-1.5 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+      // Focus is an outline outside the cell, so it can't be mistaken for an outlined cell's inset ring
+      "flex h-7 w-full min-w-11 items-center justify-center rounded-[4px] px-1.5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-foreground",
       TONES[cell.tone ?? "blue"],
       !tinted && "bg-muted/40",
       (cell.t == null || empty) && "text-muted-foreground",
@@ -585,7 +815,8 @@ export function HeatTable({
             <caption className="sr-only">Use the arrow keys to move between cells.</caption>
             <thead>
               <tr>
-                <th className="text-muted-foreground px-2 py-1 text-left font-medium">{corner}</th>
+                {/* The name column stays put while the cells scroll sideways, and only takes the width its names need */}
+                <th className="text-muted-foreground bg-card sticky left-0 z-10 w-px px-2 py-1 text-left font-medium whitespace-nowrap shadow-[0_0_0_3px_var(--card)]">{corner}</th>
                 {shownColumns.map((i) => (
                   <th key={columns[i]} scope="col" className="text-muted-foreground px-1 py-1 text-center font-medium whitespace-nowrap">
                     {columns[i]}
@@ -599,8 +830,9 @@ export function HeatTable({
                   <th
                     scope="row"
                     className={cn(
-                      "rounded-[4px] px-2 py-1 text-left font-normal whitespace-nowrap",
-                      highlight?.(row.key) && "bg-[color-mix(in_oklab,var(--highlight)_14%,var(--card))] font-semibold shadow-[inset_3px_0_0_var(--highlight)]"
+                      // The card-coloured outline covers the cell spacing, so tints scrolling under don't peek through
+                      "bg-card sticky left-0 z-10 w-px rounded-[4px] px-2 py-1 text-left font-normal whitespace-nowrap shadow-[0_0_0_3px_var(--card)]",
+                      highlight?.(row.key) && "bg-[color-mix(in_oklab,var(--highlight)_14%,var(--card))]! font-semibold shadow-[inset_3px_0_0_var(--highlight),0_0_0_3px_var(--card)]!"
                     )}
                   >
                     {row.label}

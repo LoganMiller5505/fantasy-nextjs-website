@@ -1,14 +1,12 @@
 "use client"
 
-import type { ReactNode } from "react"
-import { cn } from "cn"
 import type { scheduleSwap } from "../_lib/more-stats"
-import { HIGHLIGHT_ROW, HeatTable, Panel, diverging } from "../_components/ui"
+import { HeatTable, Panel, SimpleTable, diverging } from "../_components/ui"
 
 type Swap = ReturnType<typeof scheduleSwap>
 
-// `controls`: a season choice of its own, for when the page is showing all-time
-export function ScheduleSwap({ swap, highlighted, controls }: { swap: Swap; highlighted: string | null; controls?: ReactNode }) {
+// `latestOnly`: the page is showing all-time, so this shows the latest season instead
+export function ScheduleSwap({ swap, highlighted, latestOnly = false }: { swap: Swap; highlighted: string | null; latestOnly?: boolean }) {
   const year = swap.year
   const limit = Math.max(...swap.rows.flatMap((r) => r.cells.map((c) => Math.abs(c.change))))
   // The schedule that would have helped (and hurt) each manager most
@@ -25,8 +23,7 @@ export function ScheduleSwap({ swap, highlighted, controls }: { swap: Swap; high
     <div className="grid gap-4">
       <Panel
         title={`What if you had their schedule? ${year}`}
-        controls={controls || undefined}
-        description={`${controls ? "Schedules only swap within a season, so pick one here. " : ""}Each manager's record with every other manager's schedule; blue is better than their real record, red worse.`}
+        description={`${latestOnly ? `Schedules only swap within a season, so this is ${year}; pick a season above to see another. ` : ""}Each manager's record with every other manager's schedule; blue is better than their real record, red worse.`}
         method="Each row replays a manager's regular-season scores against the opponents on each column's schedule. In a week where that schedule meant playing yourself, you play its owner instead. The outlined diagonal is the real record."
       >
         <HeatTable
@@ -48,34 +45,18 @@ export function ScheduleSwap({ swap, highlighted, controls }: { swap: Swap; high
         />
       </Panel>
       <Panel title="Best and worst schedules to have had" description="For each manager, the other schedules that would have changed their record the most.">
-        <div className="scroll-shadow overflow-x-auto rounded-md border">
-          <table className="w-full text-sm tabular-nums">
-            <thead className="text-muted-foreground text-left">
-              <tr className="border-b">
-                <th className="px-2 py-2 font-medium">Manager</th>
-                <th className="px-2 py-2 font-medium">Best schedule</th>
-                <th className="px-2 py-2 text-right font-medium">Record</th>
-                <th className="px-2 py-2 font-medium">Worst schedule</th>
-                <th className="px-2 py-2 text-right font-medium">Record</th>
-              </tr>
-            </thead>
-            <tbody>
-              {extremes.map((e) => (
-                <tr key={e.manager} className={cn("even:bg-muted/30 border-b last:border-0", e.manager === highlighted && HIGHLIGHT_ROW)}>
-                  <td className="px-2 py-2">{e.manager}</td>
-                  <td className="px-2 py-2">{e.best.schedule}</td>
-                  <td className="px-2 py-2 text-right">
-                    {e.best.wins}-{e.best.losses} ({e.best.change > 0 ? "+" : ""}{e.best.change})
-                  </td>
-                  <td className="px-2 py-2">{e.worst.schedule}</td>
-                  <td className="px-2 py-2 text-right">
-                    {e.worst.wins}-{e.worst.losses} ({e.worst.change > 0 ? "+" : ""}{e.worst.change})
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SimpleTable
+          head={["Manager", "Best schedule", "Record", "Worst schedule", "Record"]}
+          align={["left", "left", "right", "left", "right"]}
+          highlight={(i) => extremes[i].manager === highlighted}
+          rows={extremes.map((e) => [
+            e.manager,
+            e.best.schedule,
+            `${e.best.wins}-${e.best.losses} (${e.best.change > 0 ? "+" : ""}${e.best.change})`,
+            e.worst.schedule,
+            `${e.worst.wins}-${e.worst.losses} (${e.worst.change > 0 ? "+" : ""}${e.worst.change})`,
+          ])}
+        />
       </Panel>
     </div>
   )

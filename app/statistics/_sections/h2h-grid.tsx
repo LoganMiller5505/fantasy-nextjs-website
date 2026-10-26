@@ -5,6 +5,10 @@ import { HeatTable, Panel, diverging } from "../_components/ui"
 
 type Grid = ReturnType<typeof h2hGrid>
 
+// A record over a few meetings says little, so its colour is held back: full strength needs
+// FULL_STRENGTH meetings, and fewer scale it down (a 1-0 shows a third as strong as a 3-0)
+const FULL_STRENGTH = 3
+
 export function H2HGrid({
   grid,
   openRivalry,
@@ -17,7 +21,7 @@ export function H2HGrid({
   return (
     <Panel
       title="Head-to-head, everyone"
-      description="Each row manager's all-time record against each column manager. Blue is a winning record, red a losing one. Tap a cell to open that rivalry."
+      description="Each row manager's all-time record against each column manager. Blue is a winning record, red a losing one; the colour is fainter when they've met fewer than 3 times. Tap a cell to open that rivalry."
       method="Every meeting counts, playoffs and consolation games included. — means the two have never played."
     >
       <HeatTable
@@ -34,7 +38,7 @@ export function H2HGrid({
               ? { text: "", t: null, title: `${row.manager} and ${c.opponent} have never played` }
               : {
                   text: `${c.wins}-${c.losses}`,
-                  ...diverging(c.pct - 0.5, 0.5),
+                  ...diverging((c.pct - 0.5) * Math.min(1, (c.wins + c.losses) / FULL_STRENGTH), 0.5),
                   title: `${row.manager} vs ${c.opponent}, ${c.wins}-${c.losses}. Opens the rivalry.`,
                   onClick: () => openRivalry(row.manager, c.opponent),
                 }

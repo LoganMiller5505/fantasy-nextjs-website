@@ -2,10 +2,13 @@
 // Everything is all-time and counts every game unless it says otherwise.
 
 import type { League } from "@/lib/league"
+import { playoffRace } from "./playoff-race"
 import { playoffHistory } from "./playoffs"
 import {
   groupBy,
+  latestYear,
   line,
+  lookingAhead,
   luckRows,
   nemeses,
   pct,
@@ -144,3 +147,47 @@ export function managerProfiles(league: League, sides: Side[], results: SeasonRe
 }
 
 export type ManagerProfile = ReturnType<typeof managerProfiles>[string]
+
+// Where each manager stands this season, for the "your week" tiles: place, next game, playoff odds,
+// current streak, luck and scoring rank. Null once the season is over.
+export function weekSummaries(league: League, sides: Side[], results: SeasonResult[]) {
+  const year = latestYear(league)
+  const ahead = lookingAhead(league, sides)
+  if (!ahead) return null
+  const race = playoffRace(league, sides, results, false)
+  const season = sides.filter((s) => s.year === year)
+  const table = standings(season)
+  const luck = new Map(luckRows(sides, year).map((r) => [r.player, r.Luck]))
+  const ranks = scoringRanks(league, sides).ranks
+  return Object.fromEntries(
+    table.map((row, i) => {
+      const m = row.manager
+      const game = ahead.matchups.find((g) => g.home.manager === m || g.away.manager === m)
+      const home = game?.home.manager === m
+      const opponent = game ? (home ? game.away.manager : game.home.manager) : null
+      const [hw, hl] = game ? game.h2h.split("-").map(Number) : [0, 0]
+      const odds = race?.rows.find((r) => r.manager === m)
+      const runs = streaks(m, sides.filter((s) => s.manager === m))
+      const rank = ranks[m]?.[year]
+      return [
+        m,
+        {
+          year,
+          week: ahead.label,
+          place: ordinal(i + 1),
+          of: table.length,
+          record: record(row.wins, row.losses),
+          // The record is from the home side's view, so flip it for the away side
+          next: opponent ? { opponent, h2h: home ? record(hw, hl) : record(hl, hw) } : null,
+          odds: odds ? { playoffs: odds.playoffs, projectedWins: odds.projectedWins, status: odds.status } : null,
+          streak: runs[runs.length - 1] ?? null,
+          luck: luck.get(m) ?? null,
+          ppgRank: rank ? `${ordinal(rank.rank)} of ${rank.of}` : null,
+          ppg: rank?.ppg ?? null,
+        },
+      ]
+    })
+  )
+}
+
+export type WeekSummary = NonNullable<ReturnType<typeof weekSummaries>>[string]

@@ -1,7 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { UserRound, X } from "lucide-react"
 import { cn } from "cn"
+import { Button } from "@/components/ui/button"
 import { Picker } from "./ui"
 
 // The manager to pick out on every chart and table, shared by all the statistics pages. It's kept
@@ -62,6 +64,8 @@ export const emphasis = (manager: string, highlighted: string | null) =>
 const NONE = "None"
 
 // `end`: pushed to the right of the page toolbar, after the season choice. Alone, it sits left.
+// On phones an icon stands in for the "Highlight" label so the toolbar fits on one row, and the
+// Select gives way (truncating the name) before anything wraps.
 export function HighlightPicker({
   managers,
   value,
@@ -74,17 +78,23 @@ export function HighlightPicker({
   end?: boolean
 }) {
   return (
-    <div className={cn("flex items-center gap-2", end && "ml-auto")}>
-      {/* The label makes room on phones; the Select keeps its own accessible name */}
+    <div className={cn("flex min-w-0 items-center gap-1.5 sm:gap-2", end && "ml-auto")}>
+      <UserRound className="text-muted-foreground size-4 shrink-0 sm:hidden" aria-hidden />
       <span className="text-muted-foreground hidden text-sm sm:inline">Highlight</span>
       <Picker
         label="Highlighted manager"
         size="sm"
         placeholder="Pick a manager"
+        className="min-w-0 sm:min-w-28"
         value={value}
         options={[NONE, ...[...managers].sort()]}
         onChange={(m) => onChange(m === NONE ? null : m)}
       />
+      {value != null && (
+        <Button variant="ghost" size="icon-sm" aria-label="Clear the highlight" onClick={() => onChange(null)}>
+          <X className="size-3.5" />
+        </Button>
+      )}
     </div>
   )
 }

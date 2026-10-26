@@ -15,6 +15,8 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
@@ -52,8 +54,10 @@ interface DataTableProps<TData extends RowData> {
   initialSorting?: SortingState
   // Rows to pick out, e.g. the highlighted manager's
   highlight?: (row: TData) => boolean
-  // Rows to play down, e.g. managers with too few games to compare
+  // Rows to play down, e.g. managers with too few games to compare. They sort below the rest.
   muted?: (row: TData) => boolean
+  // Columns that start hidden on phones, so the ones that matter (including the sort column) fit
+  phoneHidden?: string[]
 }
 
 export function DataTable<TData extends RowData>({
@@ -63,6 +67,7 @@ export function DataTable<TData extends RowData>({
   initialSorting = [],
   highlight,
   muted,
+  phoneHidden = [],
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -70,6 +75,14 @@ export function DataTable<TData extends RowData>({
   )
   const [columnVisibility, setColumnVisibility] =
     React.useState<ColumnVisibilityState>(initialColumnVisibility)
+  // On a narrow screen, start with the phone set hidden. Checked once after mounting (the server
+  // can't know the width), so a column shown by hand stays shown.
+  const phoneKey = phoneHidden.join()
+  React.useEffect(() => {
+    if (!phoneKey || window.matchMedia("(min-width: 640px)").matches) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setColumnVisibility((v) => ({ ...v, ...Object.fromEntries(phoneKey.split(",").map((id) => [id, false])) }))
+  }, [phoneKey])
 
   const table = useTable({
     features,
@@ -103,6 +116,10 @@ export function DataTable<TData extends RowData>({
   )
   const hideableColumns = table.getAllColumns().filter((column) => column.getCanHide())
   const shownColumns = hideableColumns.filter((column) => column.getIsVisible()).length
+  const sortedRows = table.getRowModel().rows
+  const rows = muted
+    ? [...sortedRows.filter((row) => !muted(row.original)), ...sortedRows.filter((row) => muted(row.original))]
+    : sortedRows
 
   return (
     <div>
@@ -118,7 +135,11 @@ export function DataTable<TData extends RowData>({
                     </span>
                 )}
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-80">
+            <DropdownMenuContent align="start" className="max-h-80 min-w-40">
+                <DropdownMenuItem closeOnClick={false} disabled={!hiddenPlayers.length} onClick={() => playerColumn?.setFilterValue([])}>
+                    Show all
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {players.map((player) => (
                     <DropdownMenuCheckboxItem
                         key={player}
@@ -146,7 +167,15 @@ export function DataTable<TData extends RowData>({
                     </span>
                 )}
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-80">
+            <DropdownMenuContent align="start" className="max-h-80 min-w-40">
+                <DropdownMenuItem
+                    closeOnClick={false}
+                    disabled={shownColumns === hideableColumns.length}
+                    onClick={() => hideableColumns.forEach((column) => column.toggleVisibility(true))}
+                >
+                    Show all
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {hideableColumns.map((column) => {
                     return (
                     <DropdownMenuCheckboxItem
@@ -186,8 +215,8 @@ export function DataTable<TData extends RowData>({
             ))}
             </TableHeader>
             <TableBody>
-            {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
+            {rows.length ? (
+                rows.map((row) => (
                 <TableRow
                     key={row.id}
                     data-highlighted={highlight?.(row.original) || undefined}

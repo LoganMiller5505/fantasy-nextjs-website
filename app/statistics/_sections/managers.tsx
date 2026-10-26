@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Trophy } from "lucide-react"
 import { createColumnHelper } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
@@ -10,7 +12,7 @@ import { type DataTableFeatures } from "../_components/data-table-features"
 import { HighlightPicker, useHighlight } from "../_components/highlight"
 import { Toolbar } from "../_components/scope"
 import { SortableHeader, numeric, points, sortFn_record } from "../_components/table-helpers"
-import { Panel, Section, SimpleTable, StatTile, TileGrid, fmt, pctFmt } from "../_components/ui"
+import { ManagerLink, Panel, Section, SimpleTable, StatTile, TileGrid, fmt, pctFmt } from "../_components/ui"
 import type { ManagerProfile, Opponent } from "../_lib/managers"
 import type { Scope, careers, winPctByWeek } from "../_lib/stats"
 import { CareersView } from "./careers"
@@ -27,7 +29,7 @@ const opponentColumns = columnHelper.columns([
     filterFn: "excludes",
     cell: ({ row }) => (
       <span className="inline-flex items-center gap-2">
-        {row.original.opponent}
+        <ManagerLink manager={row.original.opponent} />
         {row.original.tag && <Badge variant="outline">{row.original.tag}</Badge>}
       </span>
     ),
@@ -160,27 +162,42 @@ function Profile({ p }: { p: ManagerProfile }) {
   )
 }
 
-// One manager's page, picked with the Highlight so it follows you across the other tabs, then
-// every manager's career for comparison
-export function ManagersView({
-  profiles,
+// Every manager's career for comparison, under either page
+function EveryManager({
+  data,
+  scopes,
+  byWeek,
+  highlighted,
+}: {
+  data: ReturnType<typeof careers>
+  scopes: Scope[]
+  byWeek: Record<string, ReturnType<typeof winPctByWeek>>
+  highlighted: string | null
+}) {
+  return (
+    <Section title="Every manager" description="Tap a name to open their page.">
+      <CareersView data={data} scopes={scopes} byWeek={byWeek} highlighted={highlighted} />
+    </Section>
+  )
+}
+
+const profileHref = (m: string) => `/statistics/managers/${encodeURIComponent(m)}`
+
+// /statistics/managers: a list to pick from. With someone highlighted it goes straight to their page.
+export function ManagersIndex({
   careers: data,
   scopes,
   byWeek,
 }: {
-  profiles: Record<string, ManagerProfile>
   careers: ReturnType<typeof careers>
   scopes: Scope[]
   byWeek: Record<string, ReturnType<typeof winPctByWeek>>
 }) {
   const [highlighted, setHighlighted] = useHighlight(data.managers)
-  const pick = React.useCallback(
-    (m: string) => {
-      setHighlighted(m)
-      window.scrollTo({ top: 0, behavior: "smooth" })
-    },
-    [setHighlighted]
-  )
+  const router = useRouter()
+  React.useEffect(() => {
+    if (highlighted) router.replace(profileHref(highlighted))
+  }, [highlighted, router])
   const active = data.rows.filter((r) => r.active).map((r) => r.manager)
   const former = data.rows.filter((r) => !r.active).map((r) => r.manager)
 
@@ -189,32 +206,59 @@ export function ManagersView({
       <Toolbar>
         <HighlightPicker managers={data.managers} value={highlighted} onChange={setHighlighted} />
       </Toolbar>
-      {highlighted ? (
-        <Profile p={profiles[highlighted]} />
-      ) : (
-        <Section title="Pick a manager" description="Their page appears here, and they stay highlighted on every other tab.">
-          <div className="grid gap-3">
-            {[active, former].map(
-              (group, i) =>
-                group.length > 0 && (
-                  <div key={i} className="grid gap-1.5">
-                    {i === 1 && <p className="text-muted-foreground text-sm">Former managers</p>}
-                    <div className="flex flex-wrap gap-2">
-                      {group.map((m) => (
-                        <Button key={m} variant="outline" size="sm" onClick={() => pick(m)}>
-                          {m}
-                        </Button>
-                      ))}
-                    </div>
+      <Section title="Pick a manager" description="Each manager has their own page. Highlight yourself above and this tab opens yours.">
+        <div className="grid gap-3">
+          {[active, former].map(
+            (group, i) =>
+              group.length > 0 && (
+                <div key={i} className="grid gap-1.5">
+                  {i === 1 && <p className="text-muted-foreground text-sm">Former managers</p>}
+                  <div className="flex flex-wrap gap-2">
+                    {group.map((m) => (
+                      <Button key={m} variant="outline" size="sm" render={<Link href={profileHref(m)} />} nativeButton={false}>
+                        {m}
+                      </Button>
+                    ))}
                   </div>
-                )
-            )}
-          </div>
-        </Section>
-      )}
-      <Section title="Every manager" description="Tap a name to open their page.">
-        <CareersView data={data} scopes={scopes} byWeek={byWeek} highlighted={highlighted} onOpen={pick} />
+                </div>
+              )
+          )}
+        </div>
       </Section>
+      <EveryManager data={data} scopes={scopes} byWeek={byWeek} highlighted={highlighted} />
+    </div>
+  )
+}
+
+// /statistics/managers/[manager]: one manager's page, with its own address so it can be shared.
+// The Highlight is the manager choice here: the page's manager is the highlighted one (opening a
+// page highlights them), picking another opens their page, and None goes back to the list.
+export function ManagerPage({
+  profile,
+  careers: data,
+  scopes,
+  byWeek,
+}: {
+  profile: ManagerProfile
+  careers: ReturnType<typeof careers>
+  scopes: Scope[]
+  byWeek: Record<string, ReturnType<typeof winPctByWeek>>
+}) {
+  const [, setHighlighted] = useHighlight(data.managers)
+  const router = useRouter()
+  React.useEffect(() => setHighlighted(profile.manager), [profile.manager, setHighlighted])
+  const pick = (m: string | null) => {
+    setHighlighted(m)
+    router.push(m ? profileHref(m) : "/statistics/managers")
+  }
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
+      <Toolbar>
+        <HighlightPicker managers={data.managers} value={profile.manager} onChange={pick} />
+      </Toolbar>
+      <Profile p={profile} />
+      <EveryManager data={data} scopes={scopes} byWeek={byWeek} highlighted={profile.manager} />
     </div>
   )
 }

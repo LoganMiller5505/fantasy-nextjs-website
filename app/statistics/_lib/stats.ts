@@ -21,6 +21,10 @@ export type Side = {
   oppDivision: Division | null
 }
 
+// Fewer games than this and an all-time row is greyed out and listed last: too few to compare
+// with full careers
+export const FEW_GAMES = 10
+
 // A season, or every season
 export type Scope = number | "all"
 export const inScope = (scope: Scope) => (s: Side) => scope === "all" || s.year === scope
@@ -786,6 +790,7 @@ export function powerRankings(league: League, sides: Side[]) {
   const consensusBy = new Map(weeks.map((w) => [w, consensus(w)]))
   const latest = weeks[weeks.length - 1]
   const c = consensusBy.get(latest)!
+  const previous = weeks.length > 1 ? consensusBy.get(weeks[weeks.length - 2])! : null
   // Where each manager actually stood after the latest ballot's week: wins, then points for
   const standing = new Map(
     standings(sides.filter((s) => s.year === year && s.week_no <= latest)).map((r, i) => [r.manager, i + 1])
@@ -801,6 +806,8 @@ export function powerRankings(league: League, sides: Side[]) {
         Andy: ranks[1],
         ESPN: ranks[2],
         consensus: c[m].rank,
+        // Places gained in the consensus since the ballot before (positive is up); null on the first
+        move: previous ? previous[m].rank - c[m].rank : null,
         spread: Math.max(...ranks) - Math.min(...ranks),
         record: record(w, mine.length - w),
         standing: standing.get(m)!,
@@ -963,7 +970,7 @@ export function scoringRanks(league: League, sides: Side[]) {
 // season's weeks; all-time it runs across seasons ("2024 W1", ...) as a career win %, and a
 // manager's line breaks for seasons they weren't in the league. A line starts once the manager has
 // MIN_GAMES games, so it doesn't open on a meaningless 1.000 or .000.
-const MIN_GAMES = 3
+const MIN_GAMES = 4
 
 export function winPctByWeek(league: League, sides: Side[], scope: Scope) {
   const pool = sides.filter(inScope(scope))
