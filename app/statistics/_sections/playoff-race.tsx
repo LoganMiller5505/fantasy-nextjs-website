@@ -105,9 +105,11 @@ const PERCENT_TICKS = [0, 25, 50, 75, 100]
 export function PlayoffOddsByWeek({
   race,
   highlighted,
+  onPick,
 }: {
   race: NonNullable<Race>
   highlighted: string | null
+  onPick: (manager: string) => void
 }) {
   return (
     <Panel
@@ -120,6 +122,7 @@ export function PlayoffOddsByWeek({
         xKey="week"
         managers={race.rows.map((r) => r.manager)}
         highlighted={highlighted}
+        onPick={onPick}
         domain={[0, 100]}
         ticks={PERCENT_TICKS}
         format={odds}

@@ -110,9 +110,11 @@ export function Standings({ story, divisions, highlighted }: { story: Story; div
 export function WeeklyScores({
   story,
   highlighted,
+  onPick,
 }: {
   story: Story
   highlighted: string | null
+  onPick: (manager: string) => void
 }) {
   return (
     <Panel
@@ -124,6 +126,7 @@ export function WeeklyScores({
         xKey="week"
         managers={story.managers}
         highlighted={highlighted}
+        onPick={onPick}
         extra={{ key: "median", label: "League median" }}
         endLabels={false}
       />

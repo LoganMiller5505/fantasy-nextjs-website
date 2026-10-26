@@ -83,11 +83,13 @@ export function CareersView({
   scopes,
   byWeek,
   highlighted,
+  onPick,
 }: {
   data: Careers
   scopes: Scope[]
   byWeek: Record<string, ReturnType<typeof winPctByWeek>>
   highlighted: string | null
+  onPick: (manager: string) => void
 }) {
   const [scope, setScope] = React.useState<Scope>("all")
   const overTime = byWeek[String(scope)]
@@ -112,6 +114,7 @@ export function CareersView({
           xKey="week"
           managers={overTime.managers}
           highlighted={shown}
+          onPick={onPick}
           domain={[0, 1]}
           ticks={[0, 0.25, 0.5, 0.75, 1]}
           format={pctFmt}

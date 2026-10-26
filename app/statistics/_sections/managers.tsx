@@ -168,15 +168,18 @@ function EveryManager({
   scopes,
   byWeek,
   highlighted,
+  onPick,
 }: {
   data: ReturnType<typeof careers>
   scopes: Scope[]
   byWeek: Record<string, ReturnType<typeof winPctByWeek>>
   highlighted: string | null
+  // Clicking a manager's line opens their page, as picking them does
+  onPick: (manager: string) => void
 }) {
   return (
     <Section title="Every manager" description="Tap a name to open their page.">
-      <CareersView data={data} scopes={scopes} byWeek={byWeek} highlighted={highlighted} />
+      <CareersView data={data} scopes={scopes} byWeek={byWeek} highlighted={highlighted} onPick={onPick} />
     </Section>
   )
 }
@@ -225,7 +228,7 @@ export function ManagersIndex({
           )}
         </div>
       </Section>
-      <EveryManager data={data} scopes={scopes} byWeek={byWeek} highlighted={highlighted} />
+      <EveryManager data={data} scopes={scopes} byWeek={byWeek} highlighted={highlighted} onPick={setHighlighted} />
     </div>
   )
 }
@@ -258,7 +261,7 @@ export function ManagerPage({
         <HighlightPicker managers={data.managers} value={profile.manager} onChange={pick} />
       </Toolbar>
       <Profile p={profile} />
-      <EveryManager data={data} scopes={scopes} byWeek={byWeek} highlighted={profile.manager} />
+      <EveryManager data={data} scopes={scopes} byWeek={byWeek} highlighted={profile.manager} onPick={pick} />
     </div>
   )
 }

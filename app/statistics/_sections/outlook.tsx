@@ -34,7 +34,7 @@ export function OutlookView({
           {/* A trend needs at least two weeks */}
           {race.playoffsByWeek.length > 1 && (
             <>
-              <PlayoffOddsByWeek race={race} highlighted={highlighted} />
+              <PlayoffOddsByWeek race={race} highlighted={highlighted} onPick={setHighlighted} />
               {race.divisions.length > 0 && <DivisionOddsByWeek race={race} highlighted={highlighted} />}
             </>
           )}

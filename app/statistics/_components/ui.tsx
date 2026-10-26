@@ -306,14 +306,16 @@ function labelOffsets(
 
 // One line per manager: the picked one in blue on top, everyone else as thin grey context.
 // The tooltip reports the picked manager, plus whichever grey line the pointer is on, since
-// twelve rows of numbers go unread. Pointing at or tapping a grey line shows whose it is; only
-// the Highlight picker changes who's highlighted, so a stray tap can't. From sm up, each line is
+// twelve rows of numbers go unread. Pointing at a grey line shows whose it is and clicking it
+// highlights them. On touch the first tap only shows the name and a second tap on the same line
+// highlights, so tapping to look can't change the highlight by accident. From sm up, each line is
 // named at its end, and at its start too with `startLabels` (a bump chart, whose y axis it replaces).
 export function HighlightLines({
   data,
   xKey,
   managers,
   highlighted,
+  onPick,
   reversed = false,
   domain,
   ticks,
@@ -327,6 +329,8 @@ export function HighlightLines({
   xKey: string
   managers: string[]
   highlighted: string | null // null: every line in grey, none picked out
+  // Highlights the manager whose line was clicked
+  onPick?: (manager: string) => void
   reversed?: boolean
   domain?: [number, number]
   ticks?: number[]
@@ -340,6 +344,9 @@ export function HighlightLines({
   endLabels?: boolean
 }) {
   const [hovered, setHovered] = React.useState<string | null>(null)
+  // Whether the last press was a finger. Taps also fire a hover, which would change the chart and
+  // make the browser drop the tap's click, so on touch only clicks count.
+  const touch = React.useRef(false)
   const labelled = useWide() && endLabels
   const config = {
     ...(highlighted != null && { [highlighted]: { label: highlighted, theme: SERIES.blue } }),
@@ -389,7 +396,12 @@ export function HighlightLines({
   }
 
   return (
-    <Chart config={config} className="aspect-auto h-72 w-full">
+    <Chart
+      config={config}
+      className="aspect-auto h-72 w-full"
+      onPointerDownCapture={(event) => (touch.current = event.pointerType === "touch")}
+      onPointerMoveCapture={(event) => (touch.current = event.pointerType === "touch")}
+    >
       {/* Formatted ticks like "1.000" are wider, so they get the full left margin */}
       <LineChart
         data={data}
@@ -462,10 +474,16 @@ export function HighlightLines({
             isAnimationActive={false}
             legendType="none"
             tooltipType="none"
-            onMouseEnter={() => setHovered(m)}
-            onMouseLeave={() => setHovered(null)}
-            // Touch has no hover: a tap shows the line, a second tap hides it
-            onClick={() => setHovered((h) => (h === m ? null : m))}
+            style={{ cursor: onPick ? "pointer" : undefined }}
+            onMouseEnter={() => !touch.current && setHovered(m)}
+            onMouseLeave={() => !touch.current && setHovered(null)}
+            onClick={() => {
+              // A first tap only shows the line, since touch has no hover
+              if (touch.current && hovered !== m) return setHovered(m)
+              setHovered(null)
+              if (onPick) onPick(m)
+              else setHovered((h) => (h === m ? null : m))
+            }}
           />
         ))}
         {extra && (
@@ -585,7 +603,7 @@ export function DotPlot({
   )
 }
 
-export const PICK_HINT = "Tap or hover a grey line to see who it is."
+export const PICK_HINT = "Hover or tap a grey line to see who it is; click it, or tap it again, to highlight them."
 
 // Legend entries for a HighlightLines chart: the highlighted manager in blue (if any), then the rest
 export const highlightLegend = (highlighted: string | null) => [

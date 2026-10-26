@@ -49,7 +49,7 @@ export function SeasonView({
       </Section>
       <Section title="Week by week">
         <WeeklyGrid grid={grids[year]} highlighted={highlighted} />
-        <WeeklyScores story={story} highlighted={highlighted} />
+        <WeeklyScores story={story} highlighted={highlighted} onPick={setHighlighted} />
         <WeeklyAwards story={story} highlighted={highlighted} />
       </Section>
       {(division || strength.winPct.length > 0) && (

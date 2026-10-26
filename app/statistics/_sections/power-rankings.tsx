@@ -61,6 +61,7 @@ export function PowerRankings({ data }: { data: Rankings }) {
             xKey="week"
             managers={data.managers}
             highlighted={picked}
+            onPick={setPicked}
             reversed
             startLabels
             domain={[1, data.managers.length]}
