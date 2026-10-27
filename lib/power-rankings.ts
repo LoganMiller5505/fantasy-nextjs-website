@@ -130,7 +130,36 @@ export const POWER_RANKINGS: PowerRankingWeek[] = [
       { team: "James", rank: 12, record: "2-4",   loganDescription: "Update: His team is, in fact, still injured. He won this week, but that doesn't change the prognosis here.", 
                                                   andyDescription: "Another victory, another devastating injury, this time to Terry McLaurin. Every week players are shuffling in and out with injury. If he could just get everyone back healthy, he'd have some semblance of a chance, but it's over." },
     ]
-  }
+  },
+  {
+    week: 7,
+    rankings: [
+      { team: "Landon", rank: 1, record: "5-2",   loganDescription: "He handled business against Robert and advanced to 5-2. The inconsistency he's shown is probably not a bug but a feature at this point. At the very least, you can never count him out of any given matchup.",
+                                                  andyDescription: "" },
+      { team: "Whieldon", rank: 2, record: "4-3", loganDescription: "Yeah, Whieldon lost to Brady, but he's still a frontrunner. He scored second most in the league, and his bench is putting up points, too. I'm willing to chalk this loss up to luck and still have full faith in his team.", 
+                                                  andyDescription: "" },
+      { team: "Logan", rank: 3, record: "4-3",    loganDescription: "At some point my team needs to have the clutch gene, and they just have not shown it in three losses to what really should really be considered \"lesser competition\". At least these last two weeks, which were my most problematic for bye weeks, have finally passed. No more excuses from now on.", 
+                                                  andyDescription: "" },
+      { team: "Andrew", rank: 4, record: "4-3",   loganDescription: "This just wasn't Andrew's week. With Josh Allen on bye, everyone who had been contributing the past few weeks just left JSN holding the bag. This still doesn't spur any concern for his team from me, though, and he should bounce back nicely.", 
+                                                  andyDescription: "" },
+      { team: "Max", rank: 5, record: "5-2",      loganDescription: "The win was nice, but I have some big concerns about Max's team. His points have only gone down the last 4 weeks (even when you consider him starting the injured Devonta Smith over Tee Higgins). It's hard to totally doubt a 5 win team, but the faith is wavering.",
+                                                  andyDescription: "" },
+      { team: "Brady", rank: 6, record: "4-3",    loganDescription: "Snapping his losing streak was key to regaining control over his season, and doing it against Whieldon to tie up the division is a nice cherry on top. The roster's still questionable, but he has the space to make some moves in the waiver wire to round out his team, if he's savvy enough.", 
+                                                  andyDescription: "" },
+      { team: "Ethan", rank: 7, record: "4-3",    loganDescription: "His team is just flukey and can only win off Falcons stacked TDs... right? He's DEFINITELY fraudulent, even at 4-3... RIGHT?? His team feels so much worse than his record, but he just keeps winning. I think we found where Robert's dark magic went.",
+                                                  andyDescription: "" },
+      { team: "Andy", rank: 8, record: "3-4",     loganDescription: "Sure, it was a down week across the league, but scoring below 115 for Andy HAS to spell doom for his team. There's no other interpretation that makes sense. A loss while everyone else in his division wins is also becoming an unfortunate pattern.", 
+                                                  andyDescription: "" },
+      { team: "Matt", rank: 9, record: "3-4",     loganDescription: "Matt has gone four weeks without scoring over 100 points, which holds true even if he didn't forget to set his lineup this week. Simply put, there is no momentum here. The expectations for the roster just haven't materialiazed on the field yet.", 
+                                                  andyDescription: "" },
+      { team: "Dillon", rank: 10, record: "2-5",  loganDescription: "There's definitely reason for optimism with Josh Jacobs back to help bolster a surprisingly talented RB room, but you need more than optimism to make a playoff push. With only 2 wins and everyone else in his division at 4-3, the path is only getting harder.", 
+                                                  andyDescription: "" },
+      { team: "James", rank: 11, record: "3-4",   loganDescription: "James is finally out of the basement. With Saquon back from injury, Colston Loveland reuniting with a QB who can actually deliver him the ball, and Tre Tucker breaking out as a true WR1, there might be something here. Probably not, but he's one game behind in the division with the chance to sweep the division leader next week.",
+                                                  andyDescription: "" },
+      { team: "Robert", rank: 12, record: "1-6",  loganDescription: "A new basement dweller has been crowned. Make yourself at home down here, Robert. It could be a while.", 
+                                                  andyDescription: "" },
+    ]
+  },
 ]
 
 // Joins team info and the previous week's rank (if any), sorted by rank
