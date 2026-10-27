@@ -3,6 +3,9 @@ import { SectionNav } from "./_components/section-nav"
 
 export const metadata: Metadata = { title: "Statistics" }
 
+// Rebuild every stats page from the database at most every 5 minutes, so a sheet upload shows up without a redeploy
+export const revalidate = 300
+
 export default function StatisticsLayout({ children }: { children: React.ReactNode }) {
   return (
     // minmax(0, 1fr) keeps wide tables and the scrolling section bar from widening the page on phones
