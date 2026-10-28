@@ -2,10 +2,8 @@ import {
   columnFilteringFeature,
   columnVisibilityFeature,
   createFilteredRowModel,
-  createPaginatedRowModel,
   createSortedRowModel,
   filterFn_includesString,
-  rowPaginationFeature,
   rowSortingFeature,
   sortFn_alphanumeric,
   sortFn_text,
@@ -24,13 +22,13 @@ filterFn_excludes.autoRemove = (value?: unknown[]) => !value?.length
 export const features = tableFeatures({
   columnFilteringFeature,
   columnVisibilityFeature,
-  rowPaginationFeature,
   rowSortingFeature,
   filteredRowModel: createFilteredRowModel(),
-  paginatedRowModel: createPaginatedRowModel(),
   sortedRowModel: createSortedRowModel(),
   filterFns: { includesString: filterFn_includesString, excludes: filterFn_excludes },
   sortFns: { alphanumeric: sortFn_alphanumeric, text: sortFn_text },
+  // Numeric columns set align: "right" so their figures line up
+  columnMeta: {} as { align?: "left" | "right" },
 })
 
 // Pass this as the first generic argument to `ColumnDef`, `Column`, `Table`,
