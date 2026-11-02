@@ -10,6 +10,7 @@ const RECAPS = [
     { slug: "4", title: "Week 4" },
     { slug: "5", title: "Week 5" },
     { slug: "6", title: "Week 6" },
+    { slug: "7", title: "Week 7"},
 ];
 
 export default function AndrewsRecapsPage() {

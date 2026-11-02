@@ -28,6 +28,24 @@ export const PROFILE = {
 
 export const TWEETS: Tweet[] = [
   {
+    id: '2026-10-29-gesicki-claimed',
+    date: '2026-10-29T18:21',
+    text: 'TE Mike Gesicki was claimed off waivers this past Wednesday by Come Cee Whats in my Basement, making it the fourth team in eight weeks for the vet tight end.',
+    replies: 246,
+    retweets: 1_192,
+    likes: 8_724,
+    views: 248_384,
+  },
+  {
+    id: '2026-10-28-andrew-rookie',
+    date: '2026-10-28T12:37',
+    text: 'Amid struggles to find someone opposite WR Jaxon Smith-Njigba, Inside Zone x3 Aww Punts will be turning to rookie Omar Cooper Jr. this week against Big Intelligent Group Dominance.',
+    replies: 127,
+    retweets: 875,
+    likes: 4_285,
+    views: 143_850,
+  },
+  {
     id: '2026-10-20-whieldon-qb',
     date: '2026-10-20T09:30',
     text: 'With Jalen Hurts out for the season, Naberhood Creep will be starting backup quarterback Bo Nix this week against CRashee and Dart.',
