@@ -1,5 +1,6 @@
 import "server-only"
 import { cache } from "react"
+import { getEspn } from "@/lib/espn"
 import { getLeague } from "@/lib/league"
 import { latestYear, playedSides, seasonResults, seasonsOf } from "./stats"
 
@@ -15,3 +16,6 @@ export const getStats = cache(async () => {
     current: latestYear(league),
   }
 })
+
+// The ESPN feed, for the stats the league tables can't support (rosters, projections, the draft, moves)
+export const getEspnData = cache(getEspn)
