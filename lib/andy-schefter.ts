@@ -28,6 +28,15 @@ export const PROFILE = {
 
 export const TWEETS: Tweet[] = [
   {
+    id: '2026-10-30-robert-trade',
+    date: '2026-10-30T09:37',
+    text: '\"Come Cee Whats in my Basement, at 1-6, giving impression they are standing pat,\" sources say. \“But a long way till Dec. 2 deadline, and they are receiving calls.\"',
+    replies: 1_483,
+    retweets: 5_194,
+    likes: 38_859,
+    views: 3_218_934,
+  },
+  {
     id: '2026-10-29-gesicki-claimed',
     date: '2026-10-29T18:21',
     text: 'TE Mike Gesicki was claimed off waivers this past Wednesday by Come Cee Whats in my Basement, making it the fourth team in eight weeks for the vet tight end.',
