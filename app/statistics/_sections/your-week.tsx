@@ -2,10 +2,7 @@
 
 import Link from "next/link"
 import type { WeekSummary } from "../_lib/managers"
-import { ManagerLink, Section, StatTile, TileGrid, fmt } from "../_components/ui"
-
-// Odds as whole percents, with "<1%" for anything that's possible but rounds to nothing
-const odds = (p: number) => (p >= 0.5 ? `${Math.round(p)}%` : p > 0 ? "<1%" : "0%")
+import { ManagerLink, Section, StatTile, TileGrid, fmt, oddsFmt as odds } from "../_components/ui"
 
 // The highlighted manager's season at a glance, at the top of Season: the answers to "how am I
 // doing?" that are otherwise spread over Season, Outlook, Luck and Scoring

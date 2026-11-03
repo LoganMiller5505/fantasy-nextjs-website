@@ -5,13 +5,11 @@ import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, XAxis, 
 import { Badge } from "@/components/ui/badge"
 import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import type { playoffRace } from "../_lib/playoff-race"
-import { Chart, HeatTable, HighlightLines, Legend, PICK_HINT, Panel, SERIES, highlightLegend } from "../_components/ui"
+import { Chart, HeatTable, HighlightLines, Legend, PICK_HINT, Panel, SERIES, highlightLegend, oddsFmt as odds } from "../_components/ui"
 
 type Race = ReturnType<typeof playoffRace>
 
 const config = { playoffs: { label: "Playoff odds", theme: SERIES.blue } } satisfies ChartConfig
-// Odds as whole percents, with "<1%" for anything that's possible but rounds to nothing
-const odds = (p: number) => (p >= 0.5 ? `${Math.round(p)}%` : p > 0 ? "<1%" : "0%")
 const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`
 
 export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; highlighted: string | null }) {
@@ -26,7 +24,7 @@ export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; hi
         <Panel
           title={`Playoff odds, ${race.year}`}
           description={`Chance of finishing in one of the ${race.spots} playoff spots, with ${race.weeksLeft} regular-season weeks left.`}
-          method={`The rest of the season is played out ${race.runs.toLocaleString("en-US")} times. Each manager's simulated scores blend their own scores this season with the league's: early on they lean on the league, and by week six it's half and half. Each run also allows for not knowing how good a team really is, and that allowance shrinks as weeks are played, so one big week can't make anyone a lock. ${seeding}`}
+          method={`The rest of the season is played out ${race.runs.toLocaleString("en-US")} times. Each manager's simulated scores blend their own scores this season with the league's: early on they lean on the league, and by week six it's half and half. Each run also allows for not knowing how good a team really is, and that allowance shrinks as weeks are played, so one big week can't make anyone a lock. ${seeding} A 0% or 100% only shows once it's certain: every way the remaining games could go is checked first.`}
         >
           <Chart config={config} className="aspect-auto w-full" style={{ height: race.rows.length * 30 + 40 }}>
             <BarChart data={race.rows} layout="vertical" barCategoryGap={4} margin={{ left: 8, right: 40 }}>
@@ -53,7 +51,7 @@ export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; hi
         <Panel
           title="Where they finish"
           description="Chance of each final seed and of winning the division; darker is likelier."
-          method={`From the same simulations as the playoff odds. ${seeding} Clinched and eliminated only show once they're certain, so they can lag behind the odds.`}
+          method={`From the same simulations as the playoff odds. ${seeding} A 0% or 100% (blank cells included) only shows once it's certain: every way the remaining games could go is checked first, and anything short of certain shows as "<1%" or ">99%". Clinched and eliminated work the same way.`}
         >
           <HeatTable
             corner="Manager"

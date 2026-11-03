@@ -2,9 +2,11 @@
 // with each manager's weekly score drawn from a normal distribution. Division winners (best record,
 // then points for) take the top seeds, ordered by record then points for; everyone else is seeded
 // by record, then points for. The random generator has a fixed seed, so every build shows the
-// same numbers.
+// same numbers. Any odds that come out at exactly 0% or 100% are then checked against every way the
+// rest of the season can go (certainty.ts), and only stand if that check agrees.
 
 import type { League } from "@/lib/league"
+import { reachable, seedMask } from "./certainty"
 import { latestYear, managersIn, record, round, sum, type SeasonResult, type Side } from "./stats"
 
 const RUNS = 10_000
@@ -48,6 +50,11 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
 
   const division = new Map(league.teams.filter((t) => t.year === year).map((t) => [t.manager, t.division]))
   const divisions = [...new Set([...division.values()].filter((d) => d != null))]
+  const setup = { managers, division, divisions }
+  // Final seeds as bit masks (seed s is bit s - 1): every seed, a playoff spot, a division title
+  const ALL = seedMask(1, managers.length)
+  const IN = seedMask(1, spots)
+  const TITLE = seedMask(1, divisions.length)
 
   // Division winners first, then the rest, each by wins then points for: the rule in stats.ts
   // playoffSeeds, on running totals so it stays cheap across thousands of runs
@@ -129,21 +136,59 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
       }
       for (const m of managers) winTotals.set(m, winTotals.get(m)! + w.get(m)!)
     }
-    const playoffOdds = (m: string) => round((sum(seedCounts.get(m)!.slice(0, spots)) / RUNS) * 100, 1)
-    const divisionOdds = (m: string) => round((divisionTitles.get(m)! / RUNS) * 100, 1)
-    // Null for a manager without a game next week (or, in the odd case, never on one side of it)
-    const ifResult = (m: string) => {
-      const a = after.get(m)!
-      return a.won && a.lost ? { win: round((a.wonIn / a.won) * 100, 1), loss: round((a.lostIn / a.lost) * 100, 1) } : null
+
+    // Percentages for manager m, each from `hits` runs out of `total` landing in the seeds `event`.
+    // A figure the runs put at 0% or 100% is only shown that way if no way of finishing the season
+    // proves it wrong; otherwise it's shown just inside the range, as "<1%" or ">99%". The same goes
+    // for anything that would only round to 0 or 100.
+    const odds = (m: string, claims: { hits: number; total: number; event: number }[], fixed?: { week: number; win: boolean }) => {
+      const targets: number[] = []
+      const asked = claims.map((c) =>
+        c.hits === 0 ? targets.push(c.event) - 1 : c.hits === c.total ? targets.push(ALL & ~c.event) - 1 : -1
+      )
+      const possible = targets.length ? reachable(setup, wins, pf, remaining, m, targets, fixed) : []
+      return claims.map((c, i) => {
+        if (asked[i] < 0) return Math.min(99.9, Math.max(0.1, round((c.hits / c.total) * 100, 1)))
+        if (c.hits === 0) return possible[asked[i]] ? 0.1 : 0
+        return possible[asked[i]] ? 99.9 : 100
+      })
     }
-    return { seedCounts, winTotals, playoffOdds, divisionOdds, ifResult }
+    const inPlayoffs = (m: string) => sum(seedCounts.get(m)!.slice(0, spots))
+    // Playoff and division-title odds
+    const headline = (m: string) => {
+      const [playoffs, division] = odds(m, [
+        { hits: inPlayoffs(m), total: RUNS, event: IN },
+        { hits: divisionTitles.get(m)!, total: RUNS, event: TITLE },
+      ])
+      return { playoffs, division }
+    }
+    // Those, plus each playoff seed and the odds after a win and after a loss next week
+    const detail = (m: string) => {
+      const counts = seedCounts.get(m)!.slice(0, spots)
+      const [playoffs, division, ...seeds] = odds(m, [
+        { hits: inPlayoffs(m), total: RUNS, event: IN },
+        { hits: divisionTitles.get(m)!, total: RUNS, event: TITLE },
+        ...counts.map((hits, i) => ({ hits, total: RUNS, event: seedMask(i + 1, i + 1) })),
+      ])
+      // Null for a manager without a game next week (or, in the odd case, never on one side of it)
+      const a = after.get(m)!
+      const next =
+        a.won && a.lost
+          ? {
+              win: odds(m, [{ hits: a.wonIn, total: a.won, event: IN }], { week: nextWeek, win: true })[0],
+              loss: odds(m, [{ hits: a.lostIn, total: a.lost, event: IN }], { week: nextWeek, win: false })[0],
+            }
+          : null
+      return { playoffs, division, seeds, next }
+    }
+    return { winTotals, headline, detail }
   }
 
   const season = sides.filter((s) => s.year === year && !s.playoff)
   const wins = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && s.win).length]))
   const losses = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && !s.win).length]))
   const pf = new Map(managers.map((m) => [m, sum(season.filter((s) => s.manager === m).map((s) => s.pf))]))
-  const { seedCounts, winTotals, divisionOdds, ifResult } = simulate(season, remaining)
+  const { winTotals, detail } = simulate(season, remaining)
 
   // The same odds as they stood after each week played so far: everything after that week is
   // treated as unplayed, and the model only knows the scores up to then
@@ -155,9 +200,10 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
       schedule.filter((g) => g.week_no > week)
     )
     const label = `After ${season.find((s) => s.week_no === week)!.short}`
+    const odds = new Map(managers.map((m) => [m, then.headline(m)]))
     return {
-      playoffs: { week: label, ...Object.fromEntries(managers.map((m) => [m, then.playoffOdds(m)])) },
-      division: { week: label, ...Object.fromEntries(managers.map((m) => [m, then.divisionOdds(m)])) },
+      playoffs: { week: label, ...Object.fromEntries(managers.map((m) => [m, odds.get(m)!.playoffs])) },
+      division: { week: label, ...Object.fromEntries(managers.map((m) => [m, odds.get(m)!.division])) },
     }
   })
 
@@ -184,21 +230,25 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
 
   const rows = managers
     .map((m) => {
-      const seeds = seedCounts.get(m)!.map((n) => round((n / RUNS) * 100, 1))
+      const odds = detail(m)
+      // A badge is a proof, and so is an odds figure that survived the exhaustive check
+      const proven = status(m) ?? (odds.playoffs === 100 ? "clinched" : odds.playoffs === 0 ? "eliminated" : null)
+      const playoffs = proven === "clinched" ? 100 : proven === "eliminated" ? 0 : odds.playoffs
+      const out = proven === "eliminated"
       return {
         manager: m,
         record: record(wins.get(m)!, losses.get(m)!),
         pf: round(pf.get(m)!, 1),
         projectedWins: round(winTotals.get(m)! / RUNS, 1),
-        playoffs: round(sum(seeds.slice(0, spots)), 1),
-        topSeed: seeds[0],
+        playoffs,
+        topSeed: out ? 0 : odds.seeds[0],
         division: division.get(m) ?? null,
-        divisionTitle: divisionOdds(m),
-        seeds: seeds.slice(0, spots),
-        missed: round(sum(seeds.slice(spots)), 1),
+        divisionTitle: out ? 0 : odds.division,
+        seeds: out ? odds.seeds.map(() => 0) : odds.seeds,
+        missed: round(100 - playoffs, 1),
         // Playoff odds after winning and after losing next week's game
-        next: ifResult(m),
-        status: status(m),
+        next: odds.next && proven ? { win: playoffs, loss: playoffs } : odds.next,
+        status: proven,
       }
     })
     .sort((a, b) => b.playoffs - a.playoffs || b.projectedWins - a.projectedWins)

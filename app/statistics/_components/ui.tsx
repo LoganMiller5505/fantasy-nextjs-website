@@ -35,6 +35,10 @@ export const SERIES = {
 export const fmt = (x: number, places = 2) => x.toFixed(places)
 // Win percentages the baseball way: .538, 1.000
 export const pctFmt = (x: number) => x.toFixed(3).replace(/^0/, "")
+// Odds as whole percents. Only an exact 0 or 100 shows as "0%" or "100%" (the playoff race keeps
+// those for outcomes it has proven); anything short of that shows as "<1%" or ">99%".
+export const oddsFmt = (p: number) =>
+  p >= 100 ? "100%" : p >= 99.5 ? ">99%" : p >= 0.5 ? `${Math.round(p)}%` : p > 0 ? "<1%" : "0%"
 
 // The highlighted manager's row: a light tint of the chart blue and a blue left edge, so "my row"
 // matches "my line" and doesn't read as a zebra stripe

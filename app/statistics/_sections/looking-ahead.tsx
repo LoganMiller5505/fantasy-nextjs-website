@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import type { lookingAhead } from "../_lib/stats"
-import { Chart, Legend, Panel, SERIES, fmt, pctFmt } from "../_components/ui"
+import { Chart, Legend, Panel, SERIES, fmt, oddsFmt as oddsText, pctFmt } from "../_components/ui"
 
 type Ahead = NonNullable<ReturnType<typeof lookingAhead>>
 
@@ -17,9 +17,6 @@ const config = {
   tougher: { label: "Tougher than .500", theme: SERIES.red },
   easier: { label: "Easier than .500", theme: SERIES.blue },
 } satisfies ChartConfig
-
-// Odds as whole percents, with "<1%" for anything that's possible but rounds to nothing
-const oddsText = (p: number) => (p >= 0.5 ? `${Math.round(p)}%` : p > 0 ? "<1%" : "0%")
 
 export type MatchupOdds = { playoffs: number; next: { win: number; loss: number } | null }
 
