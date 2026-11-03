@@ -13,6 +13,8 @@ import { Chart, Legend, ManagerLink, Panel, SERIES, Section, SimpleTable, fmt, p
 import type { scheduleSwap } from "../_lib/more-stats"
 import { CLOSE_GAME, type LuckRow, type Scope } from "../_lib/stats"
 import { ScheduleSwap } from "./schedule-swap"
+import type { LuckAdditionsData } from "../_lib/espn/additions"
+import { LuckAdditions } from "./additions/luck"
 
 const columnHelper = createColumnHelper<DataTableFeatures, LuckRow>()
 const keys = ["Record", "All-play", "All-play%", "Exp W", "Luck", "Median", "Lucky W", "Unlucky L", "Close"] as const
@@ -51,17 +53,20 @@ const config = {
 } satisfies ChartConfig
 
 // The headline (luck vs expected wins) first, then the quick tables that explain it, then the
-// full breakdown and the what-if schedules
+// full breakdown, how teams fared against ESPN's projections and opponents' lineups, and the
+// what-if schedules
 export function LuckView({
   initialScope,
   scopes,
   bySeason,
   swaps,
+  espn,
 }: {
   initialScope: Scope
   scopes: Scope[]
   bySeason: Record<string, LuckRow[]>
   swaps: Record<number, ReturnType<typeof scheduleSwap>>
+  espn: Record<string, LuckAdditionsData>
 }) {
   const [scope, setScope] = useScope(initialScope)
   const rows = bySeason[String(scope)]
@@ -157,6 +162,7 @@ export function LuckView({
           />
         </Panel>
       </Section>
+      <LuckAdditions data={espn[String(scope)]} scope={scope} highlighted={highlighted} />
       <Section title="What if">
         <ScheduleSwap swap={swaps[swapYear]} highlighted={highlighted} latestOnly={scope === "all"} />
       </Section>

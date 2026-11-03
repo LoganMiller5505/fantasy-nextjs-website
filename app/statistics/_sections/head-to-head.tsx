@@ -8,6 +8,8 @@ import type { h2hGrid } from "../_lib/more-stats"
 import type { Side, closestRivalries, nemeses } from "../_lib/stats"
 import { H2HGrid } from "./h2h-grid"
 import { LeagueRivalries, Rivalry, type Pair } from "./rivalries"
+import type { H2HAdditionsData } from "../_lib/espn/additions"
+import { H2HAdditions } from "./additions/h2h"
 
 // One rivalry first (yours, once you're highlighted), then everyone against everyone, then the
 // league-wide lists
@@ -17,12 +19,14 @@ export function HeadToHead({
   managers,
   closest,
   foes,
+  espn,
 }: {
   grid: ReturnType<typeof h2hGrid>
   sides: Side[]
   managers: string[]
   closest: ReturnType<typeof closestRivalries>
   foes: ReturnType<typeof nemeses>
+  espn: H2HAdditionsData
 }) {
   const [highlighted, setHighlighted] = useHighlight(managers)
   // The rivalry's first manager follows the highlight until one is picked for the rivalry itself
@@ -60,6 +64,7 @@ export function HeadToHead({
       <Section title="League-wide">
         <LeagueRivalries closest={closest} foes={foes} highlighted={highlighted} openRivalry={openRivalry} />
       </Section>
+      <H2HAdditions data={espn} pair={[a, b]} highlighted={highlighted} />
     </div>
   )
 }

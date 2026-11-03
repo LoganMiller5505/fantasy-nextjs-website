@@ -5,6 +5,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { Scope } from "../_lib/stats"
 
 export const scopeLabel = (s: Scope) => (s === "all" ? "All-time" : String(s))
+// A week, with its season when the page spans several: "W5", or "2025 W5" all-time
+export const when = (scope: Scope, year: number, week: string) => (scope === "all" ? `${year} ${week}` : week)
 
 // A page's season scope. It starts from the ?season= the server read and is written back to the
 // URL as it changes, so a link or a reload opens the same view.

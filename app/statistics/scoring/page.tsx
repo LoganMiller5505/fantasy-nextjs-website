@@ -1,11 +1,12 @@
 import { getStats } from "../_lib/data"
+import { espnContext, scoringAdditions } from "../_lib/espn/additions"
 import { consistency } from "../_lib/more-stats"
 import { parseScope } from "../_lib/scope"
 import { scoringRanks, scoringRows, scoringTrend, strongFinish, type Scope } from "../_lib/stats"
 import { ScoringView } from "../_sections/scoring"
 
 export default async function ScoringPage({ searchParams }: { searchParams: Promise<{ season?: string | string[] }> }) {
-  const { league, sides, seasons, current } = await getStats()
+  const [{ league, sides, seasons, current }, ctx] = await Promise.all([getStats(), espnContext()])
   const scopes: Scope[] = ["all", ...seasons]
   const byScope = <T,>(derive: (scope: Scope) => T) => Object.fromEntries(scopes.map((s) => [s, derive(s)]))
 
@@ -18,6 +19,7 @@ export default async function ScoringPage({ searchParams }: { searchParams: Prom
       trend={scoringTrend(sides)}
       ranks={scoringRanks(league, sides)}
       finish={strongFinish(league, sides)}
+      espn={scoringAdditions(ctx)}
     />
   )
 }

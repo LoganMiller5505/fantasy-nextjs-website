@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { getStats } from "../../_lib/data"
+import { espnContext, managerAdditions } from "../../_lib/espn/additions"
 import { managerProfiles } from "../../_lib/managers"
 import { careers, winPctByWeek, type Scope } from "../../_lib/stats"
 import { ManagerPage } from "../../_sections/managers"
@@ -18,7 +19,7 @@ export async function generateMetadata(props: { params: Promise<{ manager: strin
 
 export default async function Manager(props: { params: Promise<{ manager: string }> }) {
   const manager = decodeURIComponent((await props.params).manager)
-  const { league, sides, results, seasons } = await getStats()
+  const [{ league, sides, results, seasons }, ctx] = await Promise.all([getStats(), espnContext()])
   const profiles = managerProfiles(league, sides, results)
   if (!profiles[manager]) notFound()
   const scopes: Scope[] = ["all", ...seasons]
@@ -29,6 +30,7 @@ export default async function Manager(props: { params: Promise<{ manager: string
       careers={careers(league, sides, results)}
       scopes={scopes}
       byWeek={Object.fromEntries(scopes.map((s) => [s, winPctByWeek(league, sides, s)]))}
+      espn={managerAdditions(ctx)[manager] ?? null}
     />
   )
 }

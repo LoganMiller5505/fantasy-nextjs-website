@@ -16,6 +16,8 @@ import { ManagerLink, Panel, Section, SimpleTable, StatTile, TileGrid, fmt, pctF
 import type { ManagerProfile, Opponent } from "../_lib/managers"
 import type { Scope, careers, winPctByWeek } from "../_lib/stats"
 import { CareersView } from "./careers"
+import type { ManagerAdditionsData } from "../_lib/espn/additions"
+import { ManagerAdditions } from "./additions/manager"
 
 const signed = (x: number, places = 1) => `${x > 0 ? "+" : ""}${fmt(x, places)}`
 
@@ -241,11 +243,13 @@ export function ManagerPage({
   careers: data,
   scopes,
   byWeek,
+  espn,
 }: {
   profile: ManagerProfile
   careers: ReturnType<typeof careers>
   scopes: Scope[]
   byWeek: Record<string, ReturnType<typeof winPctByWeek>>
+  espn: ManagerAdditionsData | null
 }) {
   const [, setHighlighted] = useHighlight(data.managers)
   const router = useRouter()
@@ -261,6 +265,7 @@ export function ManagerPage({
         <HighlightPicker managers={data.managers} value={profile.manager} onChange={pick} />
       </Toolbar>
       <Profile p={profile} />
+      {espn && <ManagerAdditions manager={profile.manager} data={espn} />}
       <EveryManager data={data} scopes={scopes} byWeek={byWeek} highlighted={profile.manager} onPick={pick} />
     </div>
   )

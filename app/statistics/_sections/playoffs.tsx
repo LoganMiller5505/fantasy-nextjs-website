@@ -11,6 +11,8 @@ import { Brackets } from "./brackets"
 import { Champions } from "./champions"
 import { PlayoffResumes, SeedsAndUpsets } from "./playoff-history"
 import { PlayoffRisers } from "./playoff-risers"
+import type { PlayoffsAdditionsData } from "../_lib/espn/additions"
+import { PlayoffsAdditions } from "./additions/playoffs"
 
 const names = (ms: string[]) => ms.join(", ")
 
@@ -25,6 +27,7 @@ export function Playoffs({
   seeds,
   years,
   risers,
+  espn,
 }: {
   top: ReturnType<typeof playoffHeadlines>
   results: SeasonResult[]
@@ -34,6 +37,7 @@ export function Playoffs({
   seeds: ReturnType<typeof seedTable>
   years: number[]
   risers: ReturnType<typeof playoffRisers>
+  espn: PlayoffsAdditionsData
 }) {
   const managers = resumes.map((r) => r.player)
   const [highlighted, setHighlighted] = useHighlight(managers)
@@ -98,6 +102,8 @@ export function Playoffs({
         <SeedsAndUpsets seeds={seeds} years={years} upsets={top.upsets} />
         <PlayoffRisers risers={risers} highlighted={highlighted} />
       </Section>
+
+      <PlayoffsAdditions data={espn} highlighted={highlighted} />
     </div>
   )
 }

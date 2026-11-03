@@ -1,17 +1,20 @@
 "use client"
 
 import * as React from "react"
+import type { RankingsAdditionsData } from "../_lib/espn/additions"
 import type { RankSource, powerRankings } from "../_lib/stats"
 import { HighlightPicker, useHighlight } from "../_components/highlight"
 import { Segmented, Toolbar } from "../_components/scope"
 import { HeatTable, HighlightLines, Legend, PICK_HINT, Panel, Section, SimpleTable, StatTile, diverging, highlightLegend } from "../_components/ui"
+import { RankingsAdditions } from "./additions/rankings"
 
 type Rankings = ReturnType<typeof powerRankings>
 
 const sources: RankSource[] = ["Consensus", "Logan", "Andy", "ESPN"]
 
-// The current ballots first, then how the rankings moved, then the rankers themselves
-export function PowerRankings({ data }: { data: Rankings }) {
+// The current ballots first, then how the rankings moved, then the rankers themselves, and last
+// ESPN's own projected finishes
+export function PowerRankings({ data, espn }: { data: Rankings; espn: RankingsAdditionsData }) {
   const [source, setSource] = React.useState<RankSource>("Consensus")
   const [picked, setPicked] = useHighlight(data.managers)
   const maxSpread = Math.max(...data.latestTable.map((r) => r.spread))
@@ -117,6 +120,7 @@ export function PowerRankings({ data }: { data: Rankings }) {
           />
         </Panel>
       </Section>
+      <RankingsAdditions data={espn} highlighted={picked} />
     </div>
   )
 }

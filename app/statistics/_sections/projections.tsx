@@ -6,13 +6,13 @@ import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/component
 import { DataTable } from "../_components/data-table"
 import { type DataTableFeatures } from "../_components/data-table-features"
 import { emphasis } from "../_components/highlight"
-import { scopeLabel } from "../_components/scope"
+import { scopeLabel, when } from "../_components/scope"
 import { SortableHeader, numeric, sortFn_record } from "../_components/table-helpers"
 import { Chart, Legend, ManagerLink, Panel, SERIES, Section, SimpleTable, StatTile, TileGrid, fmt } from "../_components/ui"
-import type { ProjectionRow } from "../_lib/preview"
+import type { ProjectionRow, projectedUpsets } from "../_lib/espn/projections"
 import type { Scope } from "../_lib/stats"
-import type { ProjectionData } from "./preview"
-import { when } from "./preview-lineups"
+
+export type ProjectionData = { rows: ProjectionRow[] } & ReturnType<typeof projectedUpsets>
 
 const signed = (x: number, places = 1) => (x > 0 ? `+${x.toFixed(places)}` : x.toFixed(places))
 

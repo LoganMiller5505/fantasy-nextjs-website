@@ -6,15 +6,17 @@ import { usePathname } from "next/navigation"
 import { cn } from "cn"
 
 // Ordered by what a weekly visitor checks first: this season as it stands and what's coming,
-// then the talking points (luck, rivalries), then deeper analysis, one manager's whole story,
-// then the history books
+// then the talking points (luck, lineup calls, rivalries), then deeper analysis (scoring, how
+// rosters were built), one manager's whole story, then the history books
 export const sections = [
   { href: "/statistics", label: "Season" },
   { href: "/statistics/outlook", label: "Outlook" },
   { href: "/statistics/rankings", label: "Power rankings" },
   { href: "/statistics/luck", label: "Luck" },
+  { href: "/statistics/lineups", label: "Lineups" },
   { href: "/statistics/head-to-head", label: "Head-to-head" },
   { href: "/statistics/scoring", label: "Scoring" },
+  { href: "/statistics/draft", label: "Draft & moves" },
   { href: "/statistics/managers", label: "Managers" },
   { href: "/statistics/playoffs", label: "Playoffs" },
   { href: "/statistics/records", label: "Records" },

@@ -5,16 +5,20 @@ import { Toolbar } from "../_components/scope"
 import { Section } from "../_components/ui"
 import type { recordBook, seasonRecords } from "../_lib/stats"
 import { SeasonRecords, SingleGames, Streaks } from "./record-book"
+import type { RecordsAdditionsData } from "../_lib/espn/additions"
+import { RecordsAdditions } from "./additions/records"
 
 // The league's record book: single games, whole seasons, then streaks. Careers live on Managers.
 export function RecordsView({
   book,
   seasons,
   managers,
+  espn,
 }: {
   book: ReturnType<typeof recordBook>
   seasons: ReturnType<typeof seasonRecords>
   managers: string[]
+  espn: RecordsAdditionsData
 }) {
   const [highlighted, setHighlighted] = useHighlight(managers)
 
@@ -34,6 +38,7 @@ export function RecordsView({
       <Section title="Streaks" description="Across seasons, playoffs included. Hot and cold needs 10 games.">
         <Streaks book={book} highlighted={highlighted} />
       </Section>
+      <RecordsAdditions data={espn} highlighted={highlighted} />
     </div>
   )
 }

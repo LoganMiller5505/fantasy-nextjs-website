@@ -19,6 +19,8 @@ import type { ConsistencyRow } from "../_lib/more-stats"
 import { FEW_GAMES, type Scope, type ScoringRow, type scoringRanks, type scoringTrend, type strongFinish } from "../_lib/stats"
 import { Consistency } from "./consistency"
 import { StrongFinish } from "./season-story"
+import type { ScoringAdditionsData } from "../_lib/espn/additions"
+import { ScoringAdditions } from "./additions/scoring"
 
 const columnHelper = createColumnHelper<DataTableFeatures, ScoringRow>()
 const keys = ["GP", "Record", "Win%", "PF", "PA", "PPG", "PA/G", "Diff", "Reg W-L", "Top weeks", "Bottom weeks"] as const
@@ -142,7 +144,8 @@ function ScoringRanks({ data, scope, highlighted }: { data: ReturnType<typeof sc
   )
 }
 
-// This scope's scoring first, then how steady it was, then views across every season
+// This scope's scoring first, then how steady it was and where the points came from, then views
+// across every season
 export function ScoringView({
   initialScope,
   scopes,
@@ -151,6 +154,7 @@ export function ScoringView({
   trend,
   ranks,
   finish,
+  espn,
 }: {
   initialScope: Scope
   scopes: Scope[]
@@ -159,6 +163,7 @@ export function ScoringView({
   trend: ReturnType<typeof scoringTrend>
   ranks: ReturnType<typeof scoringRanks>
   finish: ReturnType<typeof strongFinish>
+  espn: Record<string, ScoringAdditionsData>
 }) {
   const [scope, setScope] = useScope(initialScope)
   const scoped = rows[String(scope)]
@@ -192,6 +197,7 @@ export function ScoringView({
       <Section title="Consistency">
         <Consistency rows={spread[String(scope)]} scope={scope} highlighted={highlighted} />
       </Section>
+      <ScoringAdditions data={espn[String(scope)]} scope={scope} highlighted={highlighted} />
       <Section title="Every season" description="These cover every season, whatever season is picked above.">
         <StrongFinish data={finish} year={scope === "all" ? null : scope} highlighted={highlighted} />
         <ScoringRanks data={ranks} scope={scope} highlighted={highlighted} />

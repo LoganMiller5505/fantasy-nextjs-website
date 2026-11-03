@@ -9,9 +9,11 @@ import { emphasis } from "../_components/highlight"
 import { scopeLabel } from "../_components/scope"
 import { SortableHeader, numeric } from "../_components/table-helpers"
 import { Chart, Legend, ManagerLink, Panel, SERIES, Section, SimpleTable, fmt } from "../_components/ui"
-import type { ActivityRow, Origin } from "../_lib/preview"
+import type { Origin } from "../_lib/espn/base"
+import type { ActivityRow, TradeRow, pointSources } from "../_lib/espn/moves"
 import type { Scope } from "../_lib/stats"
-import type { MovesData } from "./preview"
+
+export type MovesData = { sources: ReturnType<typeof pointSources>; trades: TradeRow[]; activity: ActivityRow[] }
 
 const ORIGINS: Origin[] = ["Draft", "Trade", "Pickup"]
 
@@ -42,7 +44,7 @@ const columns = columnHelper.columns([
 ])
 
 export function MovesSection({ data, scope, highlighted }: { data: MovesData; scope: Scope; highlighted: string | null }) {
-  const { sources, pickups, trades, activity } = data
+  const { sources, trades, activity } = data
   const season = (year: number) => (scope === "all" ? `${year} ` : "")
   // One row per side of each trade, with the date on its first
   const ledger = trades.flatMap((trade) => trade.sides.map((side, i) => ({ trade, side, first: i === 0 })))
@@ -71,41 +73,28 @@ export function MovesSection({ data, scope, highlighted }: { data: MovesData; sc
         </Chart>
         <Legend items={ORIGINS.map((o) => ({ label: config[o].label, color: config[o].theme }))} />
       </Panel>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Best pickups" description="Waiver and free-agent adds by points scored in the lineup of the manager who added them.">
-          {pickups.length ? (
-            <SimpleTable
-              head={["Manager", "Player", "Starts", "Pts"]}
-              align={["left", "left", "right", "right"]}
-              highlight={(i) => pickups[i].manager === highlighted}
-              rows={pickups.map((p) => [`${season(p.year)}${p.manager}`, `${p.name} (${p.position})`, p.starts, fmt(p.points, 1)])}
-            />
-          ) : (
-            <p className="text-muted-foreground text-sm">No pickups have started yet.</p>
-          )}
-        </Panel>
-        <Panel
-          title="Trade ledger"
-          description="What each side got, and what it scored in their lineup for the rest of the season."
-          method="Points count weeks after the trade in which the player started for the manager who received him, playoffs included. The side whose new players scored more is marked ✓."
-        >
-          {trades.length ? (
-            <SimpleTable
-              head={["When", "Manager", "Received", "Pts"]}
-              align={["left", "left", "left", "right"]}
-              highlight={(i) => ledger[i].side.manager === highlighted}
-              rows={ledger.map(({ trade, side, first }) => [
-                first ? `${season(trade.year)}${trade.week}` : "",
-                `${side.manager}${trade.winner === side.manager ? " ✓" : ""}`,
-                side.received.map((r) => `${r.name} (${fmt(r.points, 1)})`).join(", "),
-                fmt(side.points, 1),
-              ])}
-            />
-          ) : (
-            <p className="text-muted-foreground text-sm">No trades in this span.</p>
-          )}
-        </Panel>
-      </div>
+      <Panel
+        title="Trade ledger"
+        description="What each side got, and what it scored for them for the rest of the season."
+        method="Used counts weeks after the trade in which the player started for the manager who received him; Got counts every week he was on that roster, started or not. Playoffs included. The side whose new players scored more in its lineup is marked ✓."
+      >
+        {trades.length ? (
+          <SimpleTable
+            head={["When", "Manager", "Received", "Used", "Got"]}
+            align={["left", "left", "left", "right", "right"]}
+            highlight={(i) => ledger[i].side.manager === highlighted}
+            rows={ledger.map(({ trade, side, first }) => [
+              first ? `${season(trade.year)}${trade.week}` : "",
+              `${side.manager}${trade.winner === side.manager ? " ✓" : ""}`,
+              side.received.map((r) => `${r.name} (${fmt(r.points, 1)})`).join(", "),
+              fmt(side.points, 1),
+              fmt(side.got, 1),
+            ])}
+          />
+        ) : (
+          <p className="text-muted-foreground text-sm">No trades in this span.</p>
+        )}
+      </Panel>
       <Panel
         title="Transaction activity"
         description="Adds, drops, trades and lineup moves, with the points those adds put in each lineup."

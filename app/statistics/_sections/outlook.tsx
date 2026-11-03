@@ -7,15 +7,19 @@ import { Toolbar } from "../_components/scope"
 import { Section } from "../_components/ui"
 import { Matchups, RoadAhead } from "./looking-ahead"
 import { DivisionOddsByWeek, PlayoffOddsByWeek, PlayoffRace } from "./playoff-race"
+import type { OutlookAdditionsData } from "../_lib/espn/additions"
+import { OutlookAdditions } from "./additions/outlook"
 
 // Next week first, then where the season is heading: playoff odds now and how they've moved, then
 // who has the harder run-in
 export function OutlookView({
   ahead,
   race,
+  espn,
 }: {
   ahead: NonNullable<ReturnType<typeof lookingAhead>>
   race: ReturnType<typeof playoffRace>
+  espn: OutlookAdditionsData
 }) {
   const managers = ahead.schedule.map((s) => s.manager).sort()
   const [highlighted, setHighlighted] = useHighlight(managers)
@@ -43,6 +47,7 @@ export function OutlookView({
       <Section title="Run-in">
         <RoadAhead data={ahead} highlighted={highlighted} />
       </Section>
+      <OutlookAdditions data={espn} highlighted={highlighted} />
     </div>
   )
 }

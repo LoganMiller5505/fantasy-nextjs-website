@@ -10,6 +10,8 @@ import { Standings, WeeklyAwards, WeeklyScores } from "./season-story"
 import { WeeklyGrid } from "./weekly-grid"
 import { YourWeek } from "./your-week"
 import type { WeekSummary } from "../_lib/managers"
+import type { SeasonAdditionsData } from "../_lib/espn/additions"
+import { SeasonAdditions } from "./additions/season"
 
 // The chosen season: where things stand (overall, then by division), the season week by week,
 // then how the divisions did against each other, that season and every season. Other
@@ -22,6 +24,7 @@ export function SeasonView({
   divisionsBySeason,
   strength,
   summaries,
+  espn,
 }: {
   initialYear: number
   years: number[]
@@ -31,6 +34,7 @@ export function SeasonView({
   strength: ReturnType<typeof divisionStrength>
   // This season's tiles for each manager; null once it's over
   summaries: Record<string, WeekSummary> | null
+  espn: SeasonAdditionsData
 }) {
   const [year, setYear] = useScope(initialYear)
   const story = stories[year]
@@ -51,6 +55,7 @@ export function SeasonView({
         <WeeklyGrid grid={grids[year]} highlighted={highlighted} />
         <WeeklyScores story={story} highlighted={highlighted} onPick={setHighlighted} />
         <WeeklyAwards story={story} highlighted={highlighted} />
+        <SeasonAdditions honours={espn.honours[year] ?? []} highlighted={highlighted} />
       </Section>
       {(division || strength.winPct.length > 0) && (
         <Section title="Divisions" description={division ? undefined : `${year} had no divisions; these cover every season that did.`}>
