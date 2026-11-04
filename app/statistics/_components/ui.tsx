@@ -237,11 +237,14 @@ export function SimpleTable({
   rows,
   align,
   highlight,
+  divider,
 }: {
   head: string[]
   rows: React.ReactNode[][]
   align?: ("left" | "right")[]
   highlight?: (index: number) => boolean
+  // A full-width labelled line above row `before`, such as a playoff cut-off
+  divider?: { before: number; label: string }
 }) {
   return (
     <div className="overflow-hidden rounded-md border [&_[data-slot=table-container]]:scroll-shadow">
@@ -257,13 +260,22 @@ export function SimpleTable({
         </TableHeader>
         <TableBody>
           {rows.map((cells, r) => (
-            <TableRow key={r} className={cn("even:bg-muted/30", highlight?.(r) && HIGHLIGHT_ROW)}>
-              {cells.map((cell, i) => (
-                <TableCell key={i} className={align?.[i] === "right" ? "text-right" : undefined}>
-                  {cell}
-                </TableCell>
-              ))}
-            </TableRow>
+            <React.Fragment key={r}>
+              {divider?.before === r && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={head.length} className="text-muted-foreground border-y border-dashed py-1 text-center text-xs">
+                    {divider.label}
+                  </TableCell>
+                </TableRow>
+              )}
+              <TableRow className={cn("even:bg-muted/30", highlight?.(r) && HIGHLIGHT_ROW)}>
+                {cells.map((cell, i) => (
+                  <TableCell key={i} className={align?.[i] === "right" ? "text-right" : undefined}>
+                    {cell}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
@@ -527,6 +539,8 @@ export function DotPlot({
   connect = false,
   step = 10,
   trailingLabel,
+  domain,
+  labelWidth,
 }: {
   rows: {
     key: string
@@ -542,13 +556,20 @@ export function DotPlot({
   connect?: boolean
   step?: number
   trailingLabel?: string
+  // A fixed axis, such as [0, 100] for percentages; otherwise it spans the values, rounded to `step`
+  domain?: [number, number]
+  // Width of the label column, for labels longer than a name (default 4.5rem)
+  labelWidth?: string
 }) {
   const values = rows.flatMap((r) => Object.values(r.values))
-  const lo = Math.floor(Math.min(...values) / step) * step
-  const hi = Math.ceil(Math.max(...values) / step) * step
+  const lo = domain?.[0] ?? Math.floor(Math.min(...values) / step) * step
+  const hi = domain?.[1] ?? Math.ceil(Math.max(...values) / step) * step
   const at = (x: number) => `${((x - lo) / (hi - lo || 1)) * 100}%`
   const ticks = Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, i) => lo + i * step)
   const columns = trailingLabel ? "grid-cols-[4.5rem_minmax(0,1fr)_3.5rem]" : "grid-cols-[4.5rem_minmax(0,1fr)]"
+  const template = labelWidth
+    ? { gridTemplateColumns: `${labelWidth} minmax(0,1fr)${trailingLabel ? " 3.5rem" : ""}` }
+    : undefined
 
   return (
     <div className="grid gap-2">
@@ -560,6 +581,7 @@ export function DotPlot({
             <li
               key={r.key}
               className={cn("grid items-center gap-2 rounded-[4px] px-1 py-0.5 text-xs", columns, r.highlighted && HIGHLIGHT_ROW, r.faded && "opacity-60")}
+              style={template}
             >
               <span className="truncate">{r.label}</span>
               <span className="sr-only">{r.summary}</span>
@@ -588,7 +610,7 @@ export function DotPlot({
           )
         })}
       </ul>
-      <div className={cn("grid gap-2 px-1 text-[0.7rem]", columns)} aria-hidden>
+      <div className={cn("grid gap-2 px-1 text-[0.7rem]", columns)} style={template} aria-hidden>
         <span />
         <span className="text-muted-foreground relative h-4">
           {ticks.map((t, i) => (

@@ -39,7 +39,8 @@ const MEMORY = 500_000
 // example for each target found: the winner of every game in `remaining`, in the same order.
 // `outright` only counts seasons where nobody else finishes on m's number of wins, so m's seed
 // doesn't depend on points for at all (for examples; never for deciding a 0% or 100%). `budget`
-// caps the search, for an example that's only nice to have.
+// caps the search, for an example that's only nice to have. `report.aborted` says whether it ran out
+// of budget, so an answer of "possible" can be told apart from "couldn't finish".
 export function reachable(
   setup: RaceSetup,
   wins: Map<string, number>,
@@ -52,11 +53,13 @@ export function reachable(
     witnesses,
     outright = false,
     budget = BUDGET,
+    report,
   }: {
     fixed?: { week: number; win: boolean }[]
     witnesses?: (string[] | null)[]
     outright?: boolean
     budget?: number
+    report?: { aborted: boolean }
   } = {}
 ): boolean[] {
   const { managers, divisions } = setup
@@ -389,6 +392,7 @@ export function reachable(
   if (wanted && bound() & wanted) search(0)
   // Out of budget: anything still open might be possible, so it counts as possible (with no example)
   if (witnesses) found.forEach((f, i) => !f && (witnesses[i] = null))
+  if (report) report.aborted = aborted
   return found.map((f) => f || aborted)
 }
 

@@ -12,7 +12,18 @@ type Race = ReturnType<typeof playoffRace>
 
 const config = { playoffs: { label: "Playoff odds", theme: SERIES.blue } } satisfies ChartConfig
 
-export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; highlighted: string | null }) {
+// `onOpen`: opens Path to… for a manager and outcome, from a tap on a bar or a grid cell
+export function PlayoffRace({
+  race,
+  highlighted,
+  onOpen,
+}: {
+  race: NonNullable<Race>
+  highlighted: string | null
+  onOpen?: (manager: string, outcome: string) => void
+}) {
+  const tap = onOpen ? " · tap for the paths" : ""
+  const open = (manager: string, outcome: string) => (onOpen ? () => onOpen(manager, outcome) : undefined)
   const seeding =
     race.divisionSeeds > 0
       ? `The ${race.divisionSeeds} division winners (best record, then points for) take seeds 1–${race.divisionSeeds}; the rest go to the best remaining records, with points for breaking ties.`
@@ -23,7 +34,7 @@ export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; hi
     <div className="grid gap-4">
         <Panel
           title={`Playoff odds, ${race.year}`}
-          description={`Chance of finishing in one of the ${race.spots} playoff spots, with ${race.weeksLeft} regular-season weeks left.`}
+          description={`Chance of finishing in one of the ${race.spots} playoff spots, with ${race.weeksLeft} regular-season weeks left.${onOpen ? " Tap a bar to see the paths there." : ""}`}
           method={`The rest of the season is played out ${race.runs.toLocaleString("en-US")} times. Each manager's simulated scores blend their own scores this season with the league's: early on they lean on the league, and by week six it's half and half. Each run also allows for not knowing how good a team really is, and that allowance shrinks as weeks are played, so one big week can't make anyone a lock. ${seeding} A 0% or 100% only shows once it's certain: every way the remaining games could go is checked first.`}
         >
           <Chart config={config} className="aspect-auto w-full" style={{ height: race.rows.length * 30 + 40 }}>
@@ -39,7 +50,13 @@ export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; hi
                   />
                 }
               />
-              <Bar dataKey="playoffs" fill="var(--color-playoffs)" radius={[0, 4, 4, 0]}>
+              <Bar
+                dataKey="playoffs"
+                fill="var(--color-playoffs)"
+                radius={[0, 4, 4, 0]}
+                className={onOpen ? "cursor-pointer" : undefined}
+                onClick={onOpen ? (bar) => onOpen((bar.payload as { manager: string }).manager, "playoffs") : undefined}
+              >
                 {race.rows.map((r) => (
                   <Cell key={r.manager} fillOpacity={emphasis(r.manager, highlighted)} />
                 ))}
@@ -50,7 +67,7 @@ export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; hi
         </Panel>
         <Panel
           title="Where they finish"
-          description="Chance of each final seed and of winning the division; darker is likelier."
+          description={`Chance of each final seed and of winning the division; darker is likelier.${onOpen ? " Tap a cell to see the paths to it." : ""}`}
           method={`From the same simulations as the playoff odds. ${seeding} A 0% or 100% (blank cells included) only shows once it's certain: every way the remaining games could go is checked first, and anything short of certain shows as "<1%" or ">99%". Clinched and eliminated work the same way.`}
         >
           <HeatTable
@@ -78,14 +95,21 @@ export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; hi
                 ...r.seeds.map((p, i) => ({
                   text: p > 0 ? odds(p) : "",
                   t: p / 100,
-                  title: `${r.manager}: ${odds(p)} to finish ${ordinal(i + 1)}`,
+                  title: `${r.manager}: ${odds(p)} to finish ${ordinal(i + 1)}${tap}`,
+                  onClick: open(r.manager, `seed-${i + 1}`),
                 })),
-                { text: odds(r.missed), t: null, title: `${r.manager}: ${odds(r.missed)} to miss the playoffs` },
+                {
+                  text: odds(r.missed),
+                  t: null,
+                  title: `${r.manager}: ${odds(r.missed)} to miss the playoffs${tap}`,
+                  onClick: open(r.manager, "miss"),
+                },
                 ...(race.divisionSeeds
                   ? [{
                       text: r.divisionTitle > 0 ? odds(r.divisionTitle) : "",
                       t: r.divisionTitle / 100,
-                      title: `${r.manager}: ${odds(r.divisionTitle)} to win the ${r.division} division`,
+                      title: `${r.manager}: ${odds(r.divisionTitle)} to win the ${r.division} division${tap}`,
+                      onClick: open(r.manager, "division"),
                     }]
                   : []),
                 { text: r.projectedWins.toFixed(1), t: null, title: `${r.manager}: ~${r.projectedWins.toFixed(1)} wins projected, ${r.record} now` },

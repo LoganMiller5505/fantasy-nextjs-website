@@ -38,7 +38,19 @@ export type PathOutcome = {
   // the final standings it leads to. `tiebreak`: the manager finishes level on wins with someone, so
   // points for has to fall right too.
   longShot: { won: number; lost: number; results: PathResult[]; tiebreak: boolean; standings: Standing[] } | null
+  // The manager's final records across the runs that got there (record = wins from here on), most
+  // common first; none when too few runs got there
+  records: { won: number; lost: number; share: number }[]
+  // Whether it's in the manager's own hands, from the exhaustive check: winning out guarantees it
+  // ("controls"), winning out can still fall short ("needs-help"), or winning out overshoots it
+  // ("overshoots"). Null when settled already, for missing the playoffs, or when the check ran out
+  // of budget.
+  destiny: Destiny | null
+  // How often the runs where the manager won out got there; null when too few runs won out
+  ifWinOut: number | null
 }
+
+export type Destiny = "controls" | "needs-help" | "overshoots"
 
 // One line of the final standings, best seed first. `tied`: level on wins with someone, so this
 // place depends on points for; the order shown is one the tiebreak would need to take.
@@ -63,6 +75,7 @@ export function pathsTo({
   losses,
   outcomes,
   verify,
+  destiny,
   pf,
   division,
   seedOrder,
@@ -77,6 +90,8 @@ export function pathsTo({
   // The odds shown for m landing in `seeds` given `hits` runs that did, and when no run did but
   // it's possible, the winner of every game in one season where it happens
   verify: (m: string, seeds: number, hits: number) => { odds: number; witness: string[] | null }
+  // Whether winning out settles m landing in `seeds`, exhaustively (see Destiny)
+  destiny: (m: string, seeds: number) => Destiny | null
   // Points for so far, each manager's division, and the seeding rule (wins, then the second map)
   pf: Map<string, number>
   division: Map<string, string | null | undefined>
@@ -91,7 +106,12 @@ export function pathsTo({
   const byManager = Object.fromEntries(
     managers.map((m, mi) => {
       const own = games.flatMap((x, g) => (x.manager === m || x.opponent === m ? [g] : []))
-      const ownWins = (r: number) => own.filter((g) => (runs.homeWon[r * G + g] === 1) === (games[g].manager === m)).length
+      // m's wins from here on, in each run
+      const ownWon = Uint8Array.from({ length: R }, (_, r) =>
+        own.filter((g) => (runs.homeWon[r * G + g] === 1) === (games[g].manager === m)).length
+      )
+      const ownWins = (r: number) => ownWon[r]
+      const wonOut = ownWon.filter((w) => w === own.length).length
 
       const paths = outcomes(m).map(({ key, label, seeds }): PathOutcome => {
         const hitRuns: number[] = []
@@ -99,8 +119,25 @@ export function pathsTo({
         const hits = hitRuns.length
         const { odds, witness } = verify(m, seeds, hits)
         const state = odds === 100 ? "certain" : odds === 0 ? "impossible" : null
-        const outcome: PathOutcome = { key, label, odds, state, scenarios: [], own: [], games: [], longShot: null }
+        const outcome: PathOutcome = {
+          key,
+          label,
+          odds,
+          state,
+          scenarios: [],
+          own: [],
+          games: [],
+          longShot: null,
+          records: [],
+          destiny: null,
+          ifWinOut: null,
+        }
         if (state) return outcome
+        if (key !== "miss" && own.length) outcome.destiny = destiny(m, seeds)
+        if (wonOut >= MIN_RUNS) {
+          const reached = hitRuns.filter((r) => ownWon[r] === own.length).length
+          outcome.ifWinOut = percent(reached / wonOut)
+        }
 
         if (!hits) {
           if (witness) {
@@ -140,6 +177,14 @@ export function pathsTo({
           .filter((x) => x != null)
           .map((x) => x!)
         const enough = hits >= MIN_RUNS
+        if (enough) {
+          const byRecord = new Array<number>(own.length + 1).fill(0)
+          for (const r of hitRuns) byRecord[ownWon[r]]++
+          outcome.records = byRecord
+            .map((count, won) => ({ won, lost: own.length - won, share: percent(count / hits) }))
+            .filter((x, won) => byRecord[won] / hits >= 0.005)
+            .sort((a, b) => b.share - a.share || b.won - a.won)
+        }
         outcome.own = swing
           .filter(({ g }) => enough && own.includes(g))
           .sort((a, b) => games[a.g].week_no - games[b.g].week_no)

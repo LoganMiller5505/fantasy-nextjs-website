@@ -7,7 +7,7 @@
 
 import type { League } from "@/lib/league"
 import { reachable, seedMask } from "./certainty"
-import { pathsTo, type Outcome } from "./paths"
+import { pathsTo, type Destiny, type Outcome } from "./paths"
 import { latestYear, managersIn, ordinal, record, round, sum, type SeasonResult, type Side } from "./stats"
 
 const RUNS = 10_000
@@ -159,21 +159,27 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     // proves it wrong; otherwise it's shown just inside the range, as "<1%" or ">99%". The same goes
     // for anything that would only round to 0 or 100.
     // Exhaustive answers so far, by manager, target and condition: whether some season lands m in
-    // the target, and an example season when one was found
-    const checked = new Map<string, { possible: boolean; witness: string[] | null }>()
+    // the target, an example season when one was found, and `sure`: false when the search ran out of
+    // budget before settling it (it then counts as possible, to be safe)
+    const checked = new Map<string, { possible: boolean; witness: string[] | null; sure: boolean }>()
     // `example`: only after an example season, so a small search budget will do
     const check = (m: string, targets: number[], fixed: { week: number; win: boolean }[] = [], outright = false, example = false) => {
       const id = (t: number) => `${m}|${t}|${fixed.map((f) => `${f.week}${f.win}`).join()}|${outright}|${example}`
       const open = [...new Set(targets.filter((t) => !checked.has(id(t))))]
       if (open.length) {
         const witnesses: (string[] | null)[] = []
+        const report = { aborted: false }
         const possible = reachable(setup, wins, pf, remaining, m, open, {
           fixed,
           witnesses,
           outright,
           budget: example ? EXAMPLE_BUDGET : undefined,
+          report,
         })
-        open.forEach((t, i) => checked.set(id(t), { possible: possible[i], witness: witnesses[i] ?? null }))
+        open.forEach((t, i) => {
+          const witness = witnesses[i] ?? null
+          checked.set(id(t), { possible: possible[i], witness, sure: witness != null || !report.aborted })
+        })
       }
       return targets.map((t) => checked.get(id(t))!)
     }
@@ -238,7 +244,19 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
           : null
       return { playoffs, division, seeds, next }
     }
-    return { winTotals, headline, detail, runs, verify, wins, pf }
+    // Whether winning out settles m landing in `seeds`: if it can't land there at all, winning out
+    // overshoots; if it can't miss, m controls it; otherwise m needs help. Null if the search can't
+    // settle it within the example budget: it's a label, not worth seconds of search.
+    const destiny = (m: string, seeds: number): Destiny | null => {
+      const winOut = ownWeeks(m).map((week) => ({ week, win: true }))
+      const reach = check(m, [seeds], winOut, false, true)[0]
+      if (!reach.sure) return null
+      if (!reach.possible) return "overshoots"
+      const miss = check(m, [ALL & ~seeds], winOut, false, true)[0]
+      if (!miss.sure) return null
+      return miss.possible ? "needs-help" : "controls"
+    }
+    return { winTotals, headline, detail, runs, verify, destiny, wins, pf }
   }
 
   const season = sides.filter((s) => s.year === year && !s.playoff)
@@ -335,6 +353,7 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     division,
     seedOrder,
     // A clinched or eliminated badge settles making and missing the playoffs, as in the table
+    destiny: now.destiny,
     verify: (m, seeds, hits) => {
       const status = statusOf.get(m)
       if (status && (seeds === IN || seeds === (ALL & ~IN))) {
