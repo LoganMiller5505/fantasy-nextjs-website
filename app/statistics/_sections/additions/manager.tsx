@@ -85,7 +85,7 @@ export function ManagerAdditions({ manager, data }: { manager: string; data: Man
         </Panel>
       </div>
       {trades.length > 0 && (
-        <Panel title="Trades" description="Every trade, by its margin: what their new players scored in their lineup, less what the other side's did.">
+        <Panel title="Trades" description="Every trade, by its margin: what their new players scored in their lineup, less what the other side's did." method="Points count weeks after the trade in which a player started for the manager who received him, playoffs included.">
           <SimpleTable
             head={["When", "With", "Got", "Gave", "Margin"]}
             align={["left", "left", "left", "left", "right"]}

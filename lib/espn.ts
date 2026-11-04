@@ -315,7 +315,7 @@ export async function getEspn(): Promise<Espn> {
     players: Object.fromEntries((players as Player[]).map((p) => [p.id, p])),
     picks: picks as DraftPick[],
     seasonPoints: seasonPoints as SeasonPoints[],
-    trades: [...trades.values()],
+    trades: [...trades.values(), ...inferTrades(roster as RosterSpot[], [...trades.values()], [...moves.values()])],
     moves: [...moves.values()],
     slots: slots as SlotRule[],
     matchups: matchups as Matchup[],
@@ -327,4 +327,28 @@ export async function getEspn(): Promise<Espn> {
     seasons: seasons as LeagueSeason[],
     scoring: scoring as ScoringRule[],
   }
+}
+
+// ESPN's transactions leave out trades that went to a league vote: only the vote and an accept with
+// status UNKNOWN survive, neither listing the players. The rosters still show them. A player who
+// goes straight from one team's roster to another's between consecutive NFL weeks, with no recorded
+// trade or waiver/free-agent add to explain it, was traded; every such move between the same two
+// teams in the same week is one trade.
+function inferTrades(roster: RosterSpot[], recorded: Trade[], moves: Move[]): Trade[] {
+  const team = new Map(roster.map((s) => [`${s.year}|${s.period}|${s.player_id}`, s.manager]))
+  const inferred = new Map<string, Trade>()
+  for (const s of roster) {
+    const next = team.get(`${s.year}|${s.period + 1}|${s.player_id}`)
+    if (!next || next === s.manager) continue
+    const window = (period: number) => period >= s.period && period <= s.period + 1
+    const explained =
+      recorded.some((t) => t.year === s.year && window(t.period) && t.items.some((i) => i.player_id === s.player_id && i.to === next)) ||
+      moves.some((m) => m.year === s.year && m.manager === next && m.added === s.player_id && window(m.period))
+    if (explained) continue
+    const pair = [s.manager, next].sort().join('|')
+    const id = `inferred:${s.year}:${s.period + 1}:${pair}`
+    if (!inferred.has(id)) inferred.set(id, { id, year: s.year, period: s.period + 1, items: [] })
+    inferred.get(id)!.items.push({ player_id: s.player_id, from: s.manager, to: next })
+  }
+  return [...inferred.values()]
 }
