@@ -11,6 +11,7 @@ import {
   lookingAhead,
   luckRows,
   nemeses,
+  ordinal,
   pct,
   record,
   regularSeasonOver,
@@ -24,7 +25,6 @@ import {
   type Side,
 } from "./stats"
 
-const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`
 
 export type ProfileSeason = {
   year: number

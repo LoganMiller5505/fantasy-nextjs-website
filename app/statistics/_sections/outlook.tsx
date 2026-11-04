@@ -6,10 +6,11 @@ import { HighlightPicker, useHighlight } from "../_components/highlight"
 import { Toolbar } from "../_components/scope"
 import { Section } from "../_components/ui"
 import { Matchups, RoadAhead } from "./looking-ahead"
+import { PathTo } from "./path-to"
 import { DivisionOddsByWeek, PlayoffOddsByWeek, PlayoffRace } from "./playoff-race"
 
-// Next week first, then where the season is heading: playoff odds now and how they've moved, then
-// who has the harder run-in
+// Next week first, then where the season is heading: playoff odds now and how they've moved, the
+// paths to each outcome, then who has the harder run-in
 export function OutlookView({
   ahead,
   race,
@@ -38,6 +39,17 @@ export function OutlookView({
               {race.divisions.length > 0 && <DivisionOddsByWeek race={race} highlighted={highlighted} />}
             </>
           )}
+        </Section>
+      )}
+      {race?.paths && (
+        <Section title="Path to…">
+          <PathTo
+            paths={race.paths}
+            runs={race.runs}
+            spots={race.spots}
+            divisionSeeds={race.divisionSeeds}
+            highlighted={highlighted}
+          />
         </Section>
       )}
       <Section title="Run-in">

@@ -90,6 +90,9 @@ export function playedSides(league: League): Side[] {
     .sort((a, b) => a.year - b.year || a.week_no - b.week_no || a.manager.localeCompare(b.manager))
 }
 
+// 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st
+export const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`
+
 // Regular season, wins then points for.
 export function standings(sides: Side[]) {
   return [...groupBy(sides.filter((s) => !s.playoff), (s) => s.manager)]

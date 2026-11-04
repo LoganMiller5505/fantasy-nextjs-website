@@ -5,12 +5,12 @@ import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, XAxis, 
 import { Badge } from "@/components/ui/badge"
 import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import type { playoffRace } from "../_lib/playoff-race"
+import { ordinal } from "../_lib/stats"
 import { Chart, HeatTable, HighlightLines, Legend, PICK_HINT, Panel, SERIES, highlightLegend, oddsFmt as odds } from "../_components/ui"
 
 type Race = ReturnType<typeof playoffRace>
 
 const config = { playoffs: { label: "Playoff odds", theme: SERIES.blue } } satisfies ChartConfig
-const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`
 
 export function PlayoffRace({ race, highlighted }: { race: NonNullable<Race>; highlighted: string | null }) {
   const seeding =

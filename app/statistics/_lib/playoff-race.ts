@@ -7,9 +7,15 @@
 
 import type { League } from "@/lib/league"
 import { reachable, seedMask } from "./certainty"
-import { latestYear, managersIn, record, round, sum, type SeasonResult, type Side } from "./stats"
+import { pathsTo, type Outcome } from "./paths"
+import { latestYear, managersIn, ordinal, record, round, sum, type SeasonResult, type Side } from "./stats"
 
 const RUNS = 10_000
+// Search nodes to spend looking for a nicer example season (outright, or winning or losing out)
+const EXAMPLE_BUDGET = 300_000
+// Outright searches per calculation: most long shots late in a season can only happen with a tie,
+// and proving there's no outright way costs the whole budget each time
+const OUTRIGHT_TRIES = 8
 // Weeks of league-average scoring each manager starts with, before their own scores take over
 const PRIOR_WEEKS = 6
 
@@ -31,8 +37,9 @@ function normal(rand: () => number) {
 const mean = (xs: number[]) => sum(xs) / xs.length
 const sd = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)))
 
-// `history`: also rerun the odds as they stood after each week played (Outlook's trend charts)
-export function playoffRace(league: League, sides: Side[], results: SeasonResult[], history = true) {
+// `full`: also what only Outlook shows: the odds as they stood after each week played (the trend
+// charts) and the paths to each outcome
+export function playoffRace(league: League, sides: Side[], results: SeasonResult[], full = true) {
   const year = latestYear(league)
   if (!results.find((r) => r.year === year)?.inProgress) return null
   const regularWeeks = new Set(league.weeks.filter((w) => w.year === year && !w.is_playoff).map((w) => w.week_no))
@@ -43,10 +50,13 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
 
   const managers = managersIn(league, year)
   // Playoff spots: the bracket size of the latest finished season with the same number of teams
-  const spots =
-    results
-      .filter((r) => !r.inProgress && league.teams.filter((t) => t.year === r.year).length === managers.length)
-      .sort((a, b) => b.year - a.year)[0]?.playoffTeams.length ?? Math.floor(managers.length / 2)
+  const reference = results
+    .filter((r) => !r.inProgress && league.teams.filter((t) => t.year === r.year).length === managers.length)
+    .sort((a, b) => b.year - a.year)[0]
+  const spots = reference?.playoffTeams.length ?? Math.floor(managers.length / 2)
+  // First-round byes in that bracket: playoff teams without a game in the first playoff week
+  const firstRound = Math.min(...league.weeks.filter((w) => w.year === reference?.year && w.is_playoff).map((w) => w.week_no))
+  const byes = reference ? reference.playoffTeams.filter((m) => !reference.bracketGames.includes(`${firstRound}|${m}`)).length : 0
 
   const division = new Map(league.teams.filter((t) => t.year === year).map((t) => [t.manager, t.division]))
   const divisions = [...new Set([...division.values()].filter((d) => d != null))]
@@ -69,7 +79,8 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
   // drawn around their average so far. The generator restarts from the same seed every time, so
   // the latest week's odds match the ones shown elsewhere on the page.
   type Game = { manager: string; opponent: string; week_no: number }
-  const simulate = (played: Side[], remaining: Game[]) => {
+  // `keep`: also keep every run's seeds and results, for the paths to each outcome
+  const simulate = (played: Side[], remaining: Game[], keep = false) => {
     const wins = new Map(managers.map((m) => [m, played.filter((s) => s.manager === m && s.win).length]))
     const pf = new Map(managers.map((m) => [m, sum(played.filter((s) => s.manager === m).map((s) => s.pf))]))
 
@@ -102,19 +113,24 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     // playoffs after each, for the odds with a win and with a loss
     const nextWeek = Math.min(...remaining.map((g) => g.week_no))
     const after = new Map(managers.map((m) => [m, { won: 0, wonIn: 0, lost: 0, lostIn: 0 }]))
+    const runs = keep
+      ? { count: RUNS, seed: new Uint8Array(RUNS * managers.length), homeWon: new Uint8Array(RUNS * remaining.length) }
+      : null
+    const place = new Map(managers.map((m, i) => [m, i]))
     for (let run = 0; run < RUNS; run++) {
       const nextWinners: string[] = []
       const nextLosers: string[] = []
       const w = new Map(wins)
       const p = new Map(pf)
       const level = new Map(managers.map((m) => [m, model.get(m)!.mean + model.get(m)!.doubt * z()]))
-      for (const g of remaining) {
+      for (const [i, g] of remaining.entries()) {
         const a = level.get(g.manager)! + model.get(g.manager)!.sd * z()
         const b = level.get(g.opponent)! + model.get(g.opponent)!.sd * z()
         p.set(g.manager, p.get(g.manager)! + a)
         p.set(g.opponent, p.get(g.opponent)! + b)
         const winner = a > b ? g.manager : g.opponent
         w.set(winner, w.get(winner)! + 1)
+        if (runs && a > b) runs.homeWon[run * remaining.length + i] = 1
         if (g.week_no === nextWeek) {
           nextWinners.push(winner)
           nextLosers.push(winner === g.manager ? g.opponent : g.manager)
@@ -123,6 +139,7 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
       const order = seedOrder(w, p)
       order.forEach((m, i) => {
         seedCounts.get(m)![i]++
+        if (runs) runs.seed[run * managers.length + place.get(m)!] = i
         if (i < divisions.length) divisionTitles.set(m, divisionTitles.get(m)! + 1)
       })
       const made = new Set(order.slice(0, spots))
@@ -141,17 +158,57 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     // A figure the runs put at 0% or 100% is only shown that way if no way of finishing the season
     // proves it wrong; otherwise it's shown just inside the range, as "<1%" or ">99%". The same goes
     // for anything that would only round to 0 or 100.
-    const odds = (m: string, claims: { hits: number; total: number; event: number }[], fixed?: { week: number; win: boolean }) => {
+    // Exhaustive answers so far, by manager, target and condition: whether some season lands m in
+    // the target, and an example season when one was found
+    const checked = new Map<string, { possible: boolean; witness: string[] | null }>()
+    // `example`: only after an example season, so a small search budget will do
+    const check = (m: string, targets: number[], fixed: { week: number; win: boolean }[] = [], outright = false, example = false) => {
+      const id = (t: number) => `${m}|${t}|${fixed.map((f) => `${f.week}${f.win}`).join()}|${outright}|${example}`
+      const open = [...new Set(targets.filter((t) => !checked.has(id(t))))]
+      if (open.length) {
+        const witnesses: (string[] | null)[] = []
+        const possible = reachable(setup, wins, pf, remaining, m, open, {
+          fixed,
+          witnesses,
+          outright,
+          budget: example ? EXAMPLE_BUDGET : undefined,
+        })
+        open.forEach((t, i) => checked.set(id(t), { possible: possible[i], witness: witnesses[i] ?? null }))
+      }
+      return targets.map((t) => checked.get(id(t))!)
+    }
+    const odds = (m: string, claims: { hits: number; total: number; event: number }[], fixed?: { week: number; win: boolean }[]) => {
       const targets: number[] = []
       const asked = claims.map((c) =>
         c.hits === 0 ? targets.push(c.event) - 1 : c.hits === c.total ? targets.push(ALL & ~c.event) - 1 : -1
       )
-      const possible = targets.length ? reachable(setup, wins, pf, remaining, m, targets, fixed) : []
+      const answers = targets.length ? check(m, targets, fixed) : []
       return claims.map((c, i) => {
         if (asked[i] < 0) return Math.min(99.9, Math.max(0.1, round((c.hits / c.total) * 100, 1)))
-        if (c.hits === 0) return possible[asked[i]] ? 0.1 : 0
-        return possible[asked[i]] ? 99.9 : 100
+        if (c.hits === 0) return answers[asked[i]].possible ? 0.1 : 0
+        return answers[asked[i]].possible ? 99.9 : 100
       })
+    }
+    // The odds of m landing in `seeds` from `hits` runs, with an example season when no run did.
+    // Outright first (nobody else on m's number of wins, so points for doesn't come into it); failing
+    // that, with a tie: m winning out, then losing out, then whatever the search found first.
+    let outrightTries = 0
+    const ownWeeks = (m: string) => remaining.filter((g) => g.manager === m || g.opponent === m).map((g) => g.week_no)
+    const verify = (m: string, seeds: number, hits: number) => {
+      const result = odds(m, [{ hits, total: RUNS, event: seeds }])[0]
+      if (hits > 0 || result === 0) return { odds: result, witness: null }
+      const tries = [
+        { fixed: [], outright: true },
+        { fixed: ownWeeks(m).map((week) => ({ week, win: true })), outright: false },
+        { fixed: ownWeeks(m).map((week) => ({ week, win: false })), outright: false },
+      ]
+      for (const { fixed, outright } of tries) {
+        if (outright && outrightTries++ >= OUTRIGHT_TRIES) continue
+        const { witness } = check(m, [seeds], fixed, outright, true)[0]
+        if (witness) return { odds: result, witness }
+      }
+      // The search behind the odds always has one, unless it ran out of budget
+      return { odds: result, witness: check(m, [seeds])[0].witness }
     }
     const inPlayoffs = (m: string) => sum(seedCounts.get(m)!.slice(0, spots))
     // Playoff and division-title odds
@@ -175,26 +232,27 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
       const next =
         a.won && a.lost
           ? {
-              win: odds(m, [{ hits: a.wonIn, total: a.won, event: IN }], { week: nextWeek, win: true })[0],
-              loss: odds(m, [{ hits: a.lostIn, total: a.lost, event: IN }], { week: nextWeek, win: false })[0],
+              win: odds(m, [{ hits: a.wonIn, total: a.won, event: IN }], [{ week: nextWeek, win: true }])[0],
+              loss: odds(m, [{ hits: a.lostIn, total: a.lost, event: IN }], [{ week: nextWeek, win: false }])[0],
             }
           : null
       return { playoffs, division, seeds, next }
     }
-    return { winTotals, headline, detail }
+    return { winTotals, headline, detail, runs, verify, wins, pf }
   }
 
   const season = sides.filter((s) => s.year === year && !s.playoff)
   const wins = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && s.win).length]))
   const losses = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && !s.win).length]))
   const pf = new Map(managers.map((m) => [m, sum(season.filter((s) => s.manager === m).map((s) => s.pf))]))
-  const { winTotals, detail } = simulate(season, remaining)
+  const now = simulate(season, remaining, full)
+  const { winTotals, detail } = now
 
   // The same odds as they stood after each week played so far: everything after that week is
   // treated as unplayed, and the model only knows the scores up to then
   const schedule = league.games.filter((g) => g.year === year && regularWeeks.has(g.week_no) && g.manager < g.opponent)
   const playedWeeks = [...new Set(season.map((s) => s.week_no))].sort((a, b) => a - b)
-  const byWeek = (history ? playedWeeks : []).map((week) => {
+  const byWeek = (full ? playedWeeks : []).map((week) => {
     const then = simulate(
       season.filter((s) => s.week_no <= week),
       schedule.filter((g) => g.week_no > week)
@@ -253,6 +311,40 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     })
     .sort((a, b) => b.playoffs - a.playoffs || b.projectedWins - a.projectedWins)
 
+  // Path to…: every outcome each manager can aim for, and the ways the runs reach it
+  const statusOf = new Map(rows.map((r) => [r.manager, r.status]))
+  const outcomes = (m: string): Outcome[] => [
+    { key: "playoffs", label: "Make the playoffs", seeds: IN },
+    ...(division.get(m) ? [{ key: "division", label: `Win the ${division.get(m)} division`, seeds: TITLE }] : []),
+    ...(byes > 0 && byes < spots ? [{ key: "bye", label: "Get a first-round bye", seeds: seedMask(1, byes) }] : []),
+    ...Array.from({ length: spots }, (_, i) => ({
+      key: `seed-${i + 1}`,
+      label: `Take the ${ordinal(i + 1)} seed`,
+      seeds: seedMask(i + 1, i + 1),
+    })),
+    { key: "miss", label: "Miss the playoffs", seeds: ALL & ~IN },
+  ]
+  const paths = full && pathsTo({
+    managers,
+    games: remaining,
+    runs: now.runs!,
+    wins,
+    losses,
+    outcomes,
+    pf,
+    division,
+    seedOrder,
+    // A clinched or eliminated badge settles making and missing the playoffs, as in the table
+    verify: (m, seeds, hits) => {
+      const status = statusOf.get(m)
+      if (status && (seeds === IN || seeds === (ALL & ~IN))) {
+        const made = status === "clinched"
+        return { odds: (seeds === IN) === made ? 100 : 0, witness: null }
+      }
+      return now.verify(m, seeds, hits)
+    },
+  })
+
   const weeksLeft = new Set(remaining.map((g) => g.week_no)).size
   return {
     year,
@@ -265,5 +357,6 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     playoffsByWeek: byWeek.map((h) => h.playoffs),
     divisionByWeek: byWeek.map((h) => h.division),
     divisions: divisions.map((d) => ({ division: d, managers: managers.filter((m) => division.get(m) === d) })),
+    paths,
   }
 }
