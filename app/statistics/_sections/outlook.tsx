@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import type { playoffRace } from "../_lib/playoff-race"
+import type { Race } from "../_lib/playoff-race"
 import type { lookingAhead } from "../_lib/stats"
 import { HighlightPicker, useHighlight } from "../_components/highlight"
 import { Toolbar } from "../_components/scope"
@@ -17,7 +17,7 @@ export function OutlookView({
   race,
 }: {
   ahead: NonNullable<ReturnType<typeof lookingAhead>>
-  race: ReturnType<typeof playoffRace>
+  race: Race | null
 }) {
   const managers = ahead.schedule.map((s) => s.manager).sort()
   const [highlighted, setHighlighted] = useHighlight(managers)

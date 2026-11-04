@@ -4,11 +4,11 @@ import { emphasis } from "../_components/highlight"
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import type { playoffRace } from "../_lib/playoff-race"
+import type { Race as PlayoffRace } from "../_lib/playoff-race"
 import { ordinal } from "../_lib/stats"
 import { Chart, HeatTable, HighlightLines, Legend, PICK_HINT, Panel, SERIES, highlightLegend, oddsFmt as odds } from "../_components/ui"
 
-type Race = ReturnType<typeof playoffRace>
+type Race = PlayoffRace | null
 
 const config = { playoffs: { label: "Playoff odds", theme: SERIES.blue } } satisfies ChartConfig
 

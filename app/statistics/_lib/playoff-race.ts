@@ -10,7 +10,7 @@ import { reachable, seedMask } from "./certainty"
 import { pathsTo, type Destiny, type Outcome } from "./paths"
 import { latestYear, managersIn, ordinal, record, round, sum, type SeasonResult, type Side } from "./stats"
 
-const RUNS = 10_000
+const RUNS = 100_000
 // Search nodes to spend looking for a nicer example season (outright, or winning or losing out)
 const EXAMPLE_BUDGET = 300_000
 // Outright searches per calculation: most long shots late in a season can only happen with a tie,
@@ -37,9 +37,9 @@ function normal(rand: () => number) {
 const mean = (xs: number[]) => sum(xs) / xs.length
 const sd = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)))
 
-// `full`: also what only Outlook shows: the odds as they stood after each week played (the trend
-// charts) and the paths to each outcome
-export function playoffRace(league: League, sides: Side[], results: SeasonResult[], full = true) {
+// Everything the odds are worked out from: the season in progress, its playoff format, the seeding
+// rule and the simulation. Null once the regular season is over.
+function raceModel(league: League, results: SeasonResult[]) {
   const year = latestYear(league)
   if (!results.find((r) => r.year === year)?.inProgress) return null
   const regularWeeks = new Set(league.weeks.filter((w) => w.year === year && !w.is_playoff).map((w) => w.week_no))
@@ -259,29 +259,56 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     return { winTotals, headline, detail, runs, verify, destiny, wins, pf }
   }
 
+  return { year, regularWeeks, remaining, managers, spots, byes, division, divisions, ALL, IN, TITLE, seedOrder, simulate }
+}
+
+// The weeks of the season in progress played so far, for the odds as they stood after each one
+export function playedWeeks(league: League, sides: Side[]) {
+  const year = latestYear(league)
+  return [...new Set(sides.filter((s) => s.year === year && !s.playoff).map((s) => s.week_no))].sort((a, b) => a - b)
+}
+
+// The playoff and division odds as they stood after `week`: everything after it is treated as
+// unplayed, and the model only knows the scores up to then (Outlook's trend charts). One point
+// per chart: { week: "After W3", Logan: 64.2, ... }
+export function oddsAfterWeek(league: League, sides: Side[], results: SeasonResult[], week: number) {
+  const model = raceModel(league, results)
+  if (!model) return null
+  const { year, regularWeeks, managers, simulate } = model
+  const season = sides.filter((s) => s.year === year && !s.playoff)
+  const schedule = league.games.filter((g) => g.year === year && regularWeeks.has(g.week_no) && g.manager < g.opponent)
+  const then = simulate(
+    season.filter((s) => s.week_no <= week),
+    schedule.filter((g) => g.week_no > week)
+  )
+  const label = `After ${season.find((s) => s.week_no === week)!.short}`
+  const odds = new Map(managers.map((m) => [m, then.headline(m)]))
+  return {
+    playoffs: { week: label, ...Object.fromEntries(managers.map((m) => [m, odds.get(m)!.playoffs])) },
+    division: { week: label, ...Object.fromEntries(managers.map((m) => [m, odds.get(m)!.division])) },
+  }
+}
+
+// What Outlook shows: the odds now plus the odds as they stood after each week played, which the
+// data layer (data.ts) caches separately and puts together
+export type RaceTrend = NonNullable<ReturnType<typeof oddsAfterWeek>>
+export type Race = NonNullable<ReturnType<typeof playoffRace>> & {
+  playoffsByWeek: RaceTrend["playoffs"][]
+  divisionByWeek: RaceTrend["division"][]
+}
+
+// The odds now: each manager's playoff, seed and division chances, clinched and eliminated, and
+// the paths to every outcome
+export function playoffRace(league: League, sides: Side[], results: SeasonResult[]) {
+  const model = raceModel(league, results)
+  if (!model) return null
+  const { year, remaining, managers, spots, byes, division, divisions, ALL, IN, TITLE, seedOrder, simulate } = model
   const season = sides.filter((s) => s.year === year && !s.playoff)
   const wins = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && s.win).length]))
   const losses = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && !s.win).length]))
   const pf = new Map(managers.map((m) => [m, sum(season.filter((s) => s.manager === m).map((s) => s.pf))]))
-  const now = simulate(season, remaining, full)
+  const now = simulate(season, remaining, true)
   const { winTotals, detail } = now
-
-  // The same odds as they stood after each week played so far: everything after that week is
-  // treated as unplayed, and the model only knows the scores up to then
-  const schedule = league.games.filter((g) => g.year === year && regularWeeks.has(g.week_no) && g.manager < g.opponent)
-  const playedWeeks = [...new Set(season.map((s) => s.week_no))].sort((a, b) => a - b)
-  const byWeek = (full ? playedWeeks : []).map((week) => {
-    const then = simulate(
-      season.filter((s) => s.week_no <= week),
-      schedule.filter((g) => g.week_no > week)
-    )
-    const label = `After ${season.find((s) => s.week_no === week)!.short}`
-    const odds = new Map(managers.map((m) => [m, then.headline(m)]))
-    return {
-      playoffs: { week: label, ...Object.fromEntries(managers.map((m) => [m, odds.get(m)!.playoffs])) },
-      division: { week: label, ...Object.fromEntries(managers.map((m) => [m, odds.get(m)!.division])) },
-    }
-  })
 
   // Clinched and eliminated ignore the points tiebreak, so a tie on wins always counts as a threat,
   // and they assume the worst about who wins the other divisions. Neither badge can turn out wrong;
@@ -342,7 +369,7 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     })),
     { key: "miss", label: "Miss the playoffs", seeds: ALL & ~IN },
   ]
-  const paths = full && pathsTo({
+  const paths = pathsTo({
     managers,
     games: remaining,
     runs: now.runs!,
@@ -372,9 +399,6 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
     runs: RUNS,
     weeksLeft,
     rows,
-    // One point per week played: { week: "After W3", Logan: 64.2, ... }
-    playoffsByWeek: byWeek.map((h) => h.playoffs),
-    divisionByWeek: byWeek.map((h) => h.division),
     divisions: divisions.map((d) => ({ division: d, managers: managers.filter((m) => division.get(m) === d) })),
     paths,
   }
