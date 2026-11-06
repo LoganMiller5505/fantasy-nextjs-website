@@ -2,7 +2,7 @@
 // Everything is all-time and counts every game unless it says otherwise.
 
 import type { League } from "@/lib/league"
-import { playoffRace } from "./playoff-race"
+import type { playoffRace } from "./playoff-race"
 import { playoffHistory } from "./playoffs"
 import {
   groupBy,
@@ -11,6 +11,7 @@ import {
   lookingAhead,
   luckRows,
   nemeses,
+  ordinal,
   pct,
   record,
   regularSeasonOver,
@@ -24,7 +25,6 @@ import {
   type Side,
 } from "./stats"
 
-const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`
 
 export type ProfileSeason = {
   year: number
@@ -149,12 +149,12 @@ export function managerProfiles(league: League, sides: Side[], results: SeasonRe
 export type ManagerProfile = ReturnType<typeof managerProfiles>[string]
 
 // Where each manager stands this season, for the "your week" tiles: place, next game, playoff odds,
-// current streak, luck and scoring rank. Null once the season is over.
-export function weekSummaries(league: League, sides: Side[], results: SeasonResult[]) {
+// current streak, luck and scoring rank. Null once the season is over. `race`: the odds now
+// (data.ts getCurrentRace), cached because the simulations take seconds.
+export function weekSummaries(league: League, sides: Side[], race: ReturnType<typeof playoffRace>) {
   const year = latestYear(league)
   const ahead = lookingAhead(league, sides)
   if (!ahead) return null
-  const race = playoffRace(league, sides, results, false)
   const season = sides.filter((s) => s.year === year)
   const table = standings(season)
   const luck = new Map(luckRows(sides, year).map((r) => [r.player, r.Luck]))

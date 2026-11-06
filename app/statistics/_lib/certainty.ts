@@ -25,6 +25,8 @@ export const seedMask = (from: number, to: number) => (to < from ? 0 : ((1 << to
 
 // Guessed seasons tried before the full search
 const SAMPLES = 2_000
+// More of them when only an outright finish counts, which they hit far less often
+const OUTRIGHT_SAMPLES = 20_000
 // Search nodes before giving up on a question (and counting what's still open as possible)
 const BUDGET = 2_000_000
 // States remembered by the search, to skip repeats
@@ -32,7 +34,13 @@ const MEMORY = 500_000
 
 // For manager `m`, which of `targets` (each a mask of final seeds) some way of finishing the season
 // can land in. `wins` and `pf` are the standings before `remaining` is played. `fixed` settles m's
-// game in that week first, for the odds with a win or with a loss.
+// game in each of those weeks first: next week's, for the odds with a win or with a loss, or all of
+// them, for an example where m wins or loses out. `witnesses`, if given, gets one
+// example for each target found: the winner of every game in `remaining`, in the same order.
+// `outright` only counts seasons where nobody else finishes on m's number of wins, so m's seed
+// doesn't depend on points for at all (for examples; never for deciding a 0% or 100%). `budget`
+// caps the search, for an example that's only nice to have. `report.aborted` says whether it ran out
+// of budget, so an answer of "possible" can be told apart from "couldn't finish".
 export function reachable(
   setup: RaceSetup,
   wins: Map<string, number>,
@@ -40,7 +48,19 @@ export function reachable(
   remaining: Game[],
   manager: string,
   targets: number[],
-  fixed?: { week: number; win: boolean }
+  {
+    fixed = [],
+    witnesses,
+    outright = false,
+    budget = BUDGET,
+    report,
+  }: {
+    fixed?: { week: number; win: boolean }[]
+    witnesses?: (string[] | null)[]
+    outright?: boolean
+    budget?: number
+    report?: { aborted: boolean }
+  } = {}
 ): boolean[] {
   const { managers, divisions } = setup
   const n = managers.length
@@ -71,22 +91,24 @@ export function reachable(
     else if (fs[l] >= 2 && fs[l] !== 2 + w) fs[l] = 1
   }
 
-  let games = remaining.map((g) => [index.get(g.manager)!, index.get(g.opponent)!, g.week_no] as const)
+  // [home, away, week, place in `remaining`]
+  let games = remaining.map((g, i) => [index.get(g.manager)!, index.get(g.opponent)!, g.week_no, i] as const)
   for (const [a, b] of games) {
     left[a]++
     left[b]++
   }
-  if (fixed) {
-    const g = games.find(([a, b, w]) => w === fixed.week && (a === m || b === m))
-    if (g) {
-      const o = g[0] === m ? g[1] : g[0]
-      if (fixed.win) settle(m, o)
-      else settle(o, m)
-      games = games.filter((x) => x !== g)
-    }
+  const settled: { at: number; winner: number }[] = []
+  for (const { week, win } of fixed) {
+    const g = games.find(([a, b, w]) => w === week && (a === m || b === m))
+    if (!g) continue
+    const o = g[0] === m ? g[1] : g[0]
+    if (win) settle(m, o)
+    else settle(o, m)
+    settled.push({ at: g[3], winner: win ? m : o })
+    games = games.filter((x) => x !== g)
   }
   // m's own games first, then its division's, so the bounds tighten fastest where they matter
-  const weight = ([a, b]: readonly [number, number, number]) =>
+  const weight = ([a, b]: readonly [number, number, number, number]) =>
     (a === m || b === m ? 4 : 0) + (dm >= 0 ? Number(div[a] === dm) + Number(div[b] === dm) : 0)
   games.sort((x, y) => weight(y) - weight(x))
 
@@ -142,6 +164,7 @@ export function reachable(
   const topW = new Int32Array(k)
   const leaf = () => {
     const w = lo[m]
+    if (outright) for (let t = 0; t < n; t++) if (t !== m && lo[t] === w) return 0
     topW.fill(-1)
     for (let t = 0; t < n; t++) if (div[t] >= 0 && lo[t] > topW[div[t]]) topW[div[t]] = lo[t]
     tied.length = 0
@@ -235,10 +258,18 @@ export function reachable(
   const found = targets.map(() => false)
   const openSeeds = () => targets.reduce((acc, t, i) => (found[i] ? acc : acc | t), 0)
   let wanted = openSeeds()
-  const record = (seeds: number) => {
+  // `winners`: who won each of `games`, for the witnesses
+  const record = (seeds: number, winners: Int32Array) => {
     if (!(seeds & wanted)) return
     targets.forEach((t, i) => {
-      if (!found[i] && t & seeds) found[i] = true
+      if (found[i] || !(t & seeds)) return
+      found[i] = true
+      if (witnesses) {
+        const names = new Array<string>(remaining.length)
+        games.forEach((g, j) => (names[g[3]] = managers[winners[j]]))
+        for (const s of settled) names[s.at] = managers[s.winner]
+        witnesses[i] = names
+      }
     })
     wanted = openSeeds()
   }
@@ -257,7 +288,7 @@ export function reachable(
       winner[i] = pick(a, b)
       settle(winner[i], winner[i] === a ? b : a)
     })
-    record(leaf())
+    record(leaf(), winner)
     games.forEach(([a, b], i) => {
       lo[winner[i]]--
       left[a]++
@@ -267,7 +298,7 @@ export function reachable(
   }
   const byRank = (a: number, b: number) => (rank[a] < rank[b] ? a : b)
   const coin = (a: number, b: number) => (rand() < 0.5 ? a : b)
-  for (let sample = 0; sample < SAMPLES && wanted; sample++) {
+  for (let sample = 0; sample < (outright ? OUTRIGHT_SAMPLES : SAMPLES) && wanted; sample++) {
     if (sample % 4 === 3) {
       play(coin)
       continue
@@ -292,14 +323,17 @@ export function reachable(
   const winBase = Math.max(...Array.from(lo, (w, t) => w + left[t])) + 1
   const exact = winBase ** n < Number.MAX_SAFE_INTEGER && (n + 3) ** n < Number.MAX_SAFE_INTEGER
 
+  // The winners chosen so far on the way down
+  const path = new Int32Array(games.length)
+
   const search = (depth: number) => {
     if (aborted || !wanted) return
-    if (++nodes > BUDGET) {
+    if (++nodes > budget) {
       aborted = true
       return
     }
     if (depth === games.length) {
-      record(leaf())
+      record(leaf(), path)
       return
     }
     // The same wins and tiebreak state at the same depth has the same future (the depth is implied
@@ -336,14 +370,19 @@ export function reachable(
     settle(b, a)
     const ifB = bound()
     undo(b, a)
-    // The branch that leaves more of the open targets in reach goes first
+    // The branch that leaves more of the open targets in reach goes first. Looking for an outright
+    // finish, between equals the team with fewer wins wins: that levels the standings out, so nobody
+    // lands on m's record, and finds those seasons far sooner (it slows the other searches down).
+    const reachA = popcount(ifA & wanted)
+    const reachB = popcount(ifB & wanted)
     const options =
-      popcount(ifB & wanted) > popcount(ifA & wanted)
+      reachB > reachA || (outright && reachB === reachA && lo[b] < lo[a])
         ? [[b, a, ifB], [a, b, ifA]]
         : [[a, b, ifA], [b, a, ifB]]
     for (const [w, l, reach] of options) {
       if (!(reach & wanted)) continue
       settle(w, l)
+      path[depth] = w
       search(depth + 1)
       undo(w, l)
       if (aborted || !wanted) return
@@ -351,7 +390,9 @@ export function reachable(
   }
 
   if (wanted && bound() & wanted) search(0)
-  // Out of budget: anything still open might be possible, so it counts as possible
+  // Out of budget: anything still open might be possible, so it counts as possible (with no example)
+  if (witnesses) found.forEach((f, i) => !f && (witnesses[i] = null))
+  if (report) report.aborted = aborted
   return found.map((f) => f || aborted)
 }
 

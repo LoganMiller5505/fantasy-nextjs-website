@@ -237,11 +237,14 @@ export function SimpleTable({
   rows,
   align,
   highlight,
+  divider,
 }: {
   head: string[]
   rows: React.ReactNode[][]
   align?: ("left" | "right")[]
   highlight?: (index: number) => boolean
+  // A full-width labelled line above row `before`, such as a playoff cut-off
+  divider?: { before: number; label: string }
 }) {
   return (
     <div className="overflow-hidden rounded-md border [&_[data-slot=table-container]]:scroll-shadow">
@@ -257,13 +260,22 @@ export function SimpleTable({
         </TableHeader>
         <TableBody>
           {rows.map((cells, r) => (
-            <TableRow key={r} className={cn("even:bg-muted/30", highlight?.(r) && HIGHLIGHT_ROW)}>
-              {cells.map((cell, i) => (
-                <TableCell key={i} className={align?.[i] === "right" ? "text-right" : undefined}>
-                  {cell}
-                </TableCell>
-              ))}
-            </TableRow>
+            <React.Fragment key={r}>
+              {divider?.before === r && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={head.length} className="text-muted-foreground border-y border-dashed py-1 text-center text-xs">
+                    {divider.label}
+                  </TableCell>
+                </TableRow>
+              )}
+              <TableRow className={cn("even:bg-muted/30", highlight?.(r) && HIGHLIGHT_ROW)}>
+                {cells.map((cell, i) => (
+                  <TableCell key={i} className={align?.[i] === "right" ? "text-right" : undefined}>
+                    {cell}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
@@ -527,6 +539,9 @@ export function DotPlot({
   connect = false,
   step = 10,
   trailingLabel,
+  domain,
+  labelWidth,
+  format,
 }: {
   rows: {
     key: string
@@ -542,53 +557,79 @@ export function DotPlot({
   connect?: boolean
   step?: number
   trailingLabel?: string
+  // A fixed axis, such as [0, 100] for percentages; otherwise it spans the values, rounded to `step`
+  domain?: [number, number]
+  // Width of the label column, for labels longer than a name (default 4.5rem)
+  labelWidth?: string
+  // Shows each dot's value in a tooltip on hover, as "<series>: <formatted value>"
+  format?: (value: number) => string
 }) {
   const values = rows.flatMap((r) => Object.values(r.values))
-  const lo = Math.floor(Math.min(...values) / step) * step
-  const hi = Math.ceil(Math.max(...values) / step) * step
+  const lo = domain?.[0] ?? Math.floor(Math.min(...values) / step) * step
+  const hi = domain?.[1] ?? Math.ceil(Math.max(...values) / step) * step
   const at = (x: number) => `${((x - lo) / (hi - lo || 1)) * 100}%`
   const ticks = Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, i) => lo + i * step)
   const columns = trailingLabel ? "grid-cols-[4.5rem_minmax(0,1fr)_3.5rem]" : "grid-cols-[4.5rem_minmax(0,1fr)]"
+  const template = labelWidth
+    ? { gridTemplateColumns: `${labelWidth} minmax(0,1fr)${trailingLabel ? " 3.5rem" : ""}` }
+    : undefined
 
   return (
     <div className="grid gap-2">
       <Legend items={series.map((s) => ({ label: s.label, color: s.color }))} />
-      <ul className="grid gap-0.5">
-        {rows.map((r) => {
-          const xs = Object.values(r.values)
-          return (
-            <li
-              key={r.key}
-              className={cn("grid items-center gap-2 rounded-[4px] px-1 py-0.5 text-xs", columns, r.highlighted && HIGHLIGHT_ROW, r.faded && "opacity-60")}
-            >
-              <span className="truncate">{r.label}</span>
-              <span className="sr-only">{r.summary}</span>
-              <span className="relative h-5" aria-hidden>
-                {ticks.map((t) => (
-                  <span key={t} className="bg-border/60 absolute inset-y-0 w-px" style={{ left: at(t) }} />
-                ))}
-                {connect && (
-                  <span
-                    className="bg-muted-foreground/50 absolute top-1/2 h-0.5 -translate-y-1/2"
-                    style={{ left: at(Math.min(...xs)), width: `calc(${at(Math.max(...xs))} - ${at(Math.min(...xs))})` }}
-                  />
-                )}
-                {series.map((sr) =>
-                  r.values[sr.key] == null ? null : (
+      <TooltipProvider delay={150}>
+        <ul className="grid gap-0.5">
+          {rows.map((r) => {
+            const xs = Object.values(r.values)
+            return (
+              <li
+                key={r.key}
+                className={cn("grid items-center gap-2 rounded-[4px] px-1 py-0.5 text-xs", columns, r.highlighted && HIGHLIGHT_ROW, r.faded && "opacity-60")}
+                style={template}
+              >
+                <span className="truncate">{r.label}</span>
+                <span className="sr-only">{r.summary}</span>
+                <span className="relative h-5" aria-hidden>
+                  {ticks.map((t) => (
+                    <span key={t} className="bg-border/60 absolute inset-y-0 w-px" style={{ left: at(t) }} />
+                  ))}
+                  {connect && (
                     <span
-                      key={sr.key}
-                      className="absolute top-1/2 size-2.5 -translate-1/2 rounded-full bg-(--dot) ring-2 ring-(--card) dark:bg-(--dot-dark)"
-                      style={{ left: at(r.values[sr.key]), ...dot(sr.color) }}
+                      className="bg-muted-foreground/50 absolute top-1/2 h-0.5 -translate-y-1/2"
+                      style={{ left: at(Math.min(...xs)), width: `calc(${at(Math.max(...xs))} - ${at(Math.min(...xs))})` }}
                     />
-                  )
-                )}
-              </span>
-              {trailingLabel && <span className="text-right tabular-nums">{r.trailing}</span>}
-            </li>
-          )
-        })}
-      </ul>
-      <div className={cn("grid gap-2 px-1 text-[0.7rem]", columns)} aria-hidden>
+                  )}
+                  {series.map((sr) => {
+                    const v = r.values[sr.key]
+                    if (v == null) return null
+                    const className = "absolute top-1/2 size-2.5 -translate-1/2 rounded-full bg-(--dot) ring-2 ring-(--card) dark:bg-(--dot-dark)"
+                    const style = { left: at(v), ...dot(sr.color) }
+                    if (!format) return <span key={sr.key} className={className} style={style} />
+                    return (
+                      <Tooltip key={sr.key}>
+                        <TooltipTrigger
+                          render={
+                            <span
+                              // A bigger target than the dot itself, for hovering
+                              className={cn(className, "cursor-default before:absolute before:-inset-1.5 before:content-['']")}
+                              style={style}
+                            />
+                          }
+                        />
+                        <TooltipContent>
+                          {sr.label}: {format(v)}
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  })}
+                </span>
+                {trailingLabel && <span className="text-right tabular-nums">{r.trailing}</span>}
+              </li>
+            )
+          })}
+        </ul>
+      </TooltipProvider>
+      <div className={cn("grid gap-2 px-1 text-[0.7rem]", columns)} style={template} aria-hidden>
         <span />
         <span className="text-muted-foreground relative h-4">
           {ticks.map((t, i) => (
