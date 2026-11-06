@@ -255,6 +255,7 @@ function GamesThatMatter({ outcome, manager, paths }: { outcome: PathOutcome; ma
             <DotPlot
               connect
               domain={[0, 100]}
+              format={oddsFmt}
               step={25}
               labelWidth="7rem"
               trailingLabel="Swing"
@@ -282,6 +283,7 @@ function GamesThatMatter({ outcome, manager, paths }: { outcome: PathOutcome; ma
             <DotPlot
               connect
               domain={[0, 100]}
+              format={oddsFmt}
               step={25}
               labelWidth="10rem"
               trailingLabel="Swing"
