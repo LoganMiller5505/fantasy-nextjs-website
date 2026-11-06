@@ -1,9 +1,9 @@
 // "Path to…" on the Outlook page: for each manager and each outcome (a playoff spot, a division
-// title, a bye, a seed, missing out), the most common ways the playoff-race simulations get there
-// and the remaining games that matter most for it. Odds of exactly 0% or 100% come from the
+// title, a bye, a seed, missing out), the records the playoff-race simulations get there on and
+// the remaining games that matter most for it. Odds of exactly 0% or 100% come from the
 // exhaustive check in certainty.ts, like everywhere else on the page.
 
-import { round, sum } from "./stats"
+import { round } from "./stats"
 
 type Game = { manager: string; opponent: string; week_no: number }
 
@@ -26,13 +26,12 @@ export type PathOutcome = {
   odds: number
   // Proven either way by the exhaustive check: nothing left to show but the verdict
   state: "certain" | "impossible" | null
-  // The most common ways the runs got there: the manager's record over the remaining games and
-  // the results of the most decisive other games (none when it's too rare to tell which they are)
-  scenarios: { share: number; chance: number; won: number; lost: number; results: PathResult[] }[]
+  // Whether any run got there
+  reached: boolean
   // The manager's own remaining games, by week, with the odds after a win and after a loss
   own: { g: number; ifWin: number; ifLose: number }[]
-  // The other remaining games that move these odds the most, with the odds after each result
-  // (none when too few runs got there to tell)
+  // Each remaining week's other game that moves these odds the most, by week, with the odds after
+  // each result (none when too few runs got there to tell)
   games: { g: number; ifHome: number; ifAway: number }[]
   // Possible, but no run got there: one way it can still happen, from the exhaustive search, with
   // the final standings it leads to. `tiebreak`: the manager finishes level on wins with someone, so
@@ -58,9 +57,6 @@ export type Standing = { manager: string; won: number; lost: number; division: s
 
 export type Outcome = { key: string; label: string; seeds: number }
 
-const KEY_GAMES = 6
-const SCENARIO_GAMES = 3
-const SCENARIOS = 5
 // Fewer runs than this reaching an outcome is too few to say which other games matter for it
 const MIN_RUNS = 30
 
@@ -110,7 +106,6 @@ export function pathsTo({
       const ownWon = Uint8Array.from({ length: R }, (_, r) =>
         own.filter((g) => (runs.homeWon[r * G + g] === 1) === (games[g].manager === m)).length
       )
-      const ownWins = (r: number) => ownWon[r]
       const wonOut = ownWon.filter((w) => w === own.length).length
 
       const paths = outcomes(m).map(({ key, label, seeds }): PathOutcome => {
@@ -124,7 +119,7 @@ export function pathsTo({
           label,
           odds,
           state,
-          scenarios: [],
+          reached: hits > 0,
           own: [],
           games: [],
           longShot: null,
@@ -193,42 +188,13 @@ export function pathsTo({
             return { g, ifWin: percent(home ? ifHome : ifAway), ifLose: percent(home ? ifAway : ifHome) }
           })
         const elsewhere = swing.filter(({ g, gap }) => !own.includes(g) && gap > 0.005).sort((a, b) => b.gap - a.gap)
-        outcome.games = elsewhere.slice(0, enough ? KEY_GAMES : 0).map(({ g, ifHome, ifAway }) => ({
-          g,
-          ifHome: percent(ifHome),
-          ifAway: percent(ifAway),
-        }))
+        // The other game that moves the odds most in each week, in week order
+        const weekly = new Map<number, (typeof elsewhere)[number]>()
+        if (enough) for (const x of elsewhere) if (!weekly.has(games[x.g].week_no)) weekly.set(games[x.g].week_no, x)
+        outcome.games = [...weekly]
+          .sort(([a], [b]) => a - b)
+          .map(([, { g, ifHome, ifAway }]) => ({ g, ifHome: percent(ifHome), ifAway: percent(ifAway) }))
 
-        // Group the runs that got there by the manager's record and the most decisive other games
-        // As many decisive games as still leave the top paths covering at least half the runs that
-        // got there: a broad outcome splits into too many thin paths otherwise
-        const candidates = elsewhere.slice(0, enough ? SCENARIO_GAMES : 0).map(({ g }) => g)
-        const group = (decisive: number[]) => {
-          const groups = new Map<number, { won: number; bits: number; count: number }>()
-          for (const r of hitRuns) {
-            const won = ownWins(r)
-            let bits = 0
-            decisive.forEach((g, i) => (bits |= runs.homeWon[r * G + g] << i))
-            const id = won * 8 + bits
-            const found = groups.get(id)
-            if (found) found.count++
-            else groups.set(id, { won, bits, count: 1 })
-          }
-          return [...groups.values()].sort((a, b) => b.count - a.count || b.won - a.won).slice(0, SCENARIOS)
-        }
-        let decisive = candidates
-        let top = group(decisive)
-        while (decisive.length && sum(top.map((t) => t.count)) < hits / 2) {
-          decisive = decisive.slice(0, -1)
-          top = group(decisive)
-        }
-        outcome.scenarios = top.map(({ won, bits, count }) => ({
-            share: percent(count / hits),
-            chance: percent(count / R),
-            won,
-            lost: own.length - won,
-            results: decisive.map((g, i) => pack(g, ((bits >> i) & 1) === 1)),
-          }))
         return outcome
       })
       return [m, { wins: wins.get(m)!, losses: losses.get(m)!, outcomes: paths }]

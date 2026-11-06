@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, Check, Lock } from "lucide-react"
+import { Ban, Check, Lock, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -19,10 +19,16 @@ const chipLabel = (o: PathOutcome) =>
     ? ordinal(Number(o.key.slice(5)))
     : ({ playoffs: "Playoffs", division: "Win division", bye: "Bye", miss: "Miss playoffs" } as Record<string, string>)[o.key] ?? o.label
 
+// What the icons on the outcome chips mean
+const LEGEND = [
+  { Icon: Check, text: "in their own hands: winning out guarantees it." },
+  { Icon: Sparkles, text: "long shot: no simulated season got there, but it can still happen." },
+]
+
 // Pick a manager and an outcome, then see how it happens: the odds and whether it's in their own
-// hands, the most common ways the simulations got there, the records it takes, the games that
-// matter most, and for a long shot one season where it still works. The page owns the choice, so
-// the "Where they finish" grid can open any manager and outcome here.
+// hands, the records it takes, the games that matter most, and for a long shot one season where it
+// still works. The page owns the choice, so the "Where they finish" grid can open any manager and
+// outcome here.
 export function PathTo({
   paths,
   runs,
@@ -55,8 +61,8 @@ export function PathTo({
     <Panel
       id="path-to"
       title={`${manager}: ${outcome.label}`}
-      description="Pick a manager and an outcome to see how likely it is, whether it's in their own hands, the likeliest ways it happens and the games that matter most for it."
-      method={`From the same ${runs.toLocaleString("en-US")} simulated seasons as the playoff odds. Paths group the seasons where the outcome happens by the manager's own record from here and the results of up to three other games that move its odds the most; the share is how many of those seasons each path covers. A game's odds are how often the outcome happens after each result. "In their hands" means winning out guarantees it and "needs help" means even winning out can fall short; both, like any 0% or 100%, are checked against every way the remaining games could go. For an outcome no simulated season reached, that same search supplies one season where it still happens, preferring one where the manager finishes alone on their record.`}
+      description="Pick a manager and an outcome to see how likely it is, whether it's in their own hands, the records it takes and the games that matter most for it."
+      method={`From the same ${runs.toLocaleString("en-US")} simulated seasons as the playoff odds. A game's odds are how often the outcome happens after each result. "In their hands" means winning out guarantees it and "needs help" means even winning out can fall short; both, like any 0% or 100%, are checked against every way the remaining games could go. For an outcome no simulated season reached, that same search supplies one season where it still happens, preferring one where the manager finishes alone on their record.`}
       controls={<Picker label="Manager" value={manager} options={managers} onChange={onManager} />}
     >
       <div className="grid gap-6">
@@ -83,6 +89,7 @@ export function PathTo({
                       {chipLabel(o)}
                       {o.state === "certain" && <Lock className="size-3" aria-label="Locked in" />}
                       {o.destiny === "controls" && <Check className="size-3 text-(--highlight)" aria-label="In their hands" />}
+                      {o.longShot && <Sparkles className="size-3 text-(--highlight)" aria-label="Long shot" />}
                     </span>
                     <span className={cn("text-muted-foreground text-[0.7rem] tabular-nums", o.state === "impossible" && "line-through")}>
                       {oddsFmt(o.odds)}
@@ -93,7 +100,12 @@ export function PathTo({
             ) : null
           )}
           <p className="text-muted-foreground text-xs">
-            <Check className="inline size-3 text-(--highlight)" aria-hidden /> in their own hands: winning out guarantees it.
+            {LEGEND.map(({ Icon, text }, i) => (
+              <React.Fragment key={text}>
+                {i > 0 && " "}
+                <Icon className={cn("inline size-3 text-(--highlight)", i > 0 && "ml-2")} aria-hidden /> {text}
+              </React.Fragment>
+            ))}
           </p>
         </div>
 
@@ -118,12 +130,11 @@ export function PathTo({
         ) : (
           <>
             <Headline outcome={outcome} manager={manager} record={record(mine.wins, mine.losses)} gamesLeft={gamesLeft} final={final} />
-            {outcome.scenarios.length > 0 && <LikeliestPaths outcome={outcome} manager={manager} paths={paths} final={final} />}
-            {outcome.records.length > 1 && <RecordsItTakes outcome={outcome} final={final} />}
+            {outcome.records.length > 1 && <RecordsItTakes outcome={outcome} lower={lower} final={final} />}
             {(outcome.own.length > 0 || outcome.games.length > 0) && (
               <GamesThatMatter outcome={outcome} manager={manager} paths={paths} />
             )}
-            {outcome.scenarios.length > 0 && outcome.own.length === 0 && (
+            {outcome.reached && outcome.own.length === 0 && (
               <p className="text-muted-foreground text-sm">Too few simulated seasons got there to say which games matter.</p>
             )}
             {outcome.longShot && (
@@ -138,7 +149,7 @@ export function PathTo({
                 final={final}
               />
             )}
-            {!outcome.scenarios.length && !outcome.longShot && (
+            {!outcome.reached && !outcome.longShot && (
               <p className="text-muted-foreground text-sm">
                 Still possible as far as the search could tell, but it couldn&apos;t find an example in time.
               </p>
@@ -176,9 +187,7 @@ function Headline({
             value: "Needs help",
             detail: outcome.ifWinOut != null ? `Even winning out (${winOut}): ${oddsFmt(outcome.ifWinOut)}` : "Winning out isn't enough on its own",
           }
-        : outcome.destiny === "overshoots"
-          ? { value: "Needs to drop games", detail: `Winning out (${winOut}) overshoots this` }
-          : null
+        : null
   return (
     <TileGrid wide={destiny ? 4 : 3}>
       <StatTile label="Chance" value={oddsFmt(outcome.odds)} detail={`${manager} to ${outcome.label.charAt(0).toLowerCase() + outcome.label.slice(1)}`} />
@@ -194,13 +203,13 @@ function Headline({
 }
 
 // A share as a filled bar with its percentage in front
-function ShareBar({ share, muted }: { share: number; muted?: boolean }) {
+function ShareBar({ share }: { share: number }) {
   return (
     <span className="flex items-center gap-2">
-      <span className={cn("w-10 shrink-0 text-right text-sm tabular-nums", muted ? "text-muted-foreground" : "font-medium")}>{oddsFmt(share)}</span>
+      <span className="w-10 shrink-0 text-right text-sm font-medium tabular-nums">{oddsFmt(share)}</span>
       <span className="bg-muted relative h-2 flex-1 overflow-hidden rounded-full" aria-hidden>
         <span
-          className={cn("absolute inset-y-0 left-0 rounded-full", muted ? "bg-muted-foreground/40" : "bg-(--highlight)")}
+          className="absolute inset-y-0 left-0 rounded-full bg-(--highlight)"
           style={{ width: `${Math.max(2, share)}%` }}
         />
       </span>
@@ -208,81 +217,32 @@ function ShareBar({ share, muted }: { share: number; muted?: boolean }) {
   )
 }
 
-// One result as a pill: the winner, then who they beat and when
-function ResultChip({ r, paths, manager }: { r: PathResult; paths: Paths; manager: string }) {
-  const { g, homeWon } = unpack(r)
-  const x = paths.games[g]
-  const [winner, loser] = homeWon ? [x.home, x.away] : [x.away, x.home]
-  return (
-    <span className={cn("inline-flex items-baseline gap-1 rounded-md border px-2 py-0.5 text-xs", (winner === manager || loser === manager) && TINT)}>
-      <span className="font-medium">{winner}</span>
-      <span className="text-muted-foreground">
-        over {loser} · {x.week}
-      </span>
-    </span>
-  )
-}
-
-function LikeliestPaths({ outcome, manager, paths, final }: { outcome: PathOutcome; manager: string; paths: Paths; final: Final }) {
-  const other = 100 - outcome.scenarios.reduce((sum, s) => sum + s.share, 0)
-  return (
-    <div className="grid gap-3">
-      <h4 className="text-sm font-medium">Likeliest paths</h4>
-      <ol className="grid gap-3">
-        {outcome.scenarios.map((s, i) => (
-          <li
-            key={i}
-            title={`${oddsFmt(s.chance)} of all simulated seasons`}
-            className="grid gap-1.5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center sm:gap-4"
-          >
-            <ShareBar share={s.share} />
-            <span className="flex flex-wrap gap-1.5">
-              <span className={cn("inline-flex items-baseline gap-1 rounded-md border px-2 py-0.5 text-xs", TINT)}>
-                <span className="font-medium">
-                  {manager} {s.lost === 0 ? "wins out" : s.won === 0 ? "loses out" : `goes ${record(s.won, s.lost)}`}
-                </span>
-                <span className="text-muted-foreground">→ {final(s.won, s.lost)}</span>
-              </span>
-              {s.results.map((r) => (
-                <ResultChip key={r} r={r} paths={paths} manager={manager} />
-              ))}
-            </span>
-          </li>
-        ))}
-        {other >= 0.5 && (
-          <li className="grid gap-1.5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center sm:gap-4">
-            <ShareBar share={other} muted />
-            <span className="text-muted-foreground text-xs">Other combinations</span>
-          </li>
-        )}
-      </ol>
-      <p className="text-muted-foreground text-xs">
-        Share of the simulated seasons where it happens that follow each path. Hover a path for its chance overall.
-      </p>
-    </div>
-  )
-}
-
 // The final records the manager finishes on when it happens
-function RecordsItTakes({ outcome, final }: { outcome: PathOutcome; final: Final }) {
+function RecordsItTakes({ outcome, lower, final }: { outcome: PathOutcome; lower: string; final: Final }) {
   const records = [...outcome.records].sort((a, b) => b.won - a.won)
   return (
     <div className="grid gap-3">
-      <h4 className="text-sm font-medium">What record it takes</h4>
+      <h4 className="text-sm font-medium">Most likely records to {lower}</h4>
       <ul className="grid gap-1.5">
         {records.map((r) => (
-          <li key={r.won} className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-3 text-sm sm:grid-cols-[3.5rem_minmax(0,24rem)]">
+          <li
+            key={r.won}
+            className="grid grid-cols-[3.5rem_5rem_minmax(0,1fr)] items-center gap-3 text-sm sm:grid-cols-[3.5rem_5rem_minmax(0,24rem)]"
+          >
             <span className="tabular-nums">{final(r.won, r.lost)}</span>
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {r.lost === 0 ? "wins out" : r.won === 0 ? "loses out" : `goes ${record(r.won, r.lost)}`}
+            </span>
             <ShareBar share={r.share} />
           </li>
         ))}
       </ul>
-      <p className="text-muted-foreground text-xs">Final records across the simulated seasons where it happens.</p>
+      <p className="text-muted-foreground text-xs">Final records across the simulated seasons where it happens, and what that means from here.</p>
     </div>
   )
 }
 
-// The manager's own games, then the other games that move the odds most, as win/loss dumbbells
+// The manager's own games, then each week's other game that moves the odds most, as win/loss dumbbells
 function GamesThatMatter({ outcome, manager, paths }: { outcome: PathOutcome; manager: string; paths: Paths }) {
   const swing = (a: number, b: number) => `${Math.round(a - b) > 0 ? "+" : ""}${Math.round(a - b)}`
   return (
@@ -318,7 +278,7 @@ function GamesThatMatter({ outcome, manager, paths }: { outcome: PathOutcome; ma
         )}
         {outcome.games.length > 0 && (
           <div className="grid content-start gap-2">
-            <h5 className="text-muted-foreground text-xs font-medium">Around the league: who to root for</h5>
+            <h5 className="text-muted-foreground text-xs font-medium">Most important game each week</h5>
             <DotPlot
               connect
               domain={[0, 100]}
@@ -346,7 +306,7 @@ function GamesThatMatter({ outcome, manager, paths }: { outcome: PathOutcome; ma
         )}
       </div>
       <p className="text-muted-foreground text-xs">
-        The chance {manager} gets there after each result; swing is the gap in points. Other games are the ones that move it most.
+        The chance {manager} gets there after each result; swing is the gap in points. For each week, the other game that moves it most.
       </p>
     </div>
   )
