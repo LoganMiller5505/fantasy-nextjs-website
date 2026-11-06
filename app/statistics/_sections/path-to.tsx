@@ -189,7 +189,9 @@ function Headline({
             value: "Needs help",
             detail: outcome.ifWinOut != null ? `Even winning out (${winOut}): ${oddsFmt(outcome.ifWinOut)}` : "Winning out isn't enough on its own",
           }
-        : null
+        : outcome.destiny === "overshoots"
+          ? { value: "Past this seed", detail: `Winning out (${winOut}) takes them past this seed` }
+          : null
   return (
     <TileGrid wide={destiny ? 4 : 3}>
       <StatTile label="Chance" value={oddsFmt(outcome.odds)} detail={`${manager} to ${outcome.label.charAt(0).toLowerCase() + outcome.label.slice(1)}`} />
