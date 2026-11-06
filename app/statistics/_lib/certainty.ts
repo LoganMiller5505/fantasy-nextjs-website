@@ -8,9 +8,10 @@
 // with, can't overtake that team on points. Otherwise a team still playing can always overtake a
 // team it's tied with on wins, since a fantasy score has no ceiling. Where several tiebreaks
 // interact the search allows any combination of them, so it may call an outcome possible that a
-// full points-for check would rule out, but never the reverse. The same goes if the search runs
-// past its budget: everything still open counts as possible. So a 0% or 100% that survives is
-// certain; one that doesn't is shown as "<1%" or ">99%".
+// full points-for check would rule out, but never the reverse. If the search runs past its
+// budget, what's still open is settled by a max flow over who finishes above m instead (see the end
+// of `reachable`); anything that still can't be settled counts as possible. So a 0% or 100% that
+// survives is certain; one that doesn't is shown as "<1%" or ">99%".
 
 type Game = { manager: string; opponent: string; week_no: number }
 
@@ -39,8 +40,8 @@ const MEMORY = 500_000
 // example for each target found: the winner of every game in `remaining`, in the same order.
 // `outright` only counts seasons where nobody else finishes on m's number of wins, so m's seed
 // doesn't depend on points for at all (for examples; never for deciding a 0% or 100%). `budget`
-// caps the search, for an example that's only nice to have. `report.aborted` says whether it ran out
-// of budget, so an answer of "possible" can be told apart from "couldn't finish".
+// caps the search, for an example that's only nice to have. `report.aborted` says whether anything
+// was left unsettled, so an answer of "possible" can be told apart from "couldn't finish".
 export function reachable(
   setup: RaceSetup,
   wins: Map<string, number>,
@@ -390,10 +391,188 @@ export function reachable(
   }
 
   if (wanted && bound() & wanted) search(0)
-  // Out of budget: anything still open might be possible, so it counts as possible (with no example)
+
+  // Out of budget: settle what's still open by who finishes above m instead of game by game. For
+  // each number of wins m could end on and each set of teams that could finish above it (level on
+  // wins counts, the tiebreak going their way), m's seed follows from the seeding rule, and a max
+  // flow says whether the remaining games can give every team a total on the right side of m's at
+  // once. No feasible set: the target is out of reach. A feasible one is played through `leaf`,
+  // which knows the locked tiebreaks, before it counts as found.
+  // Targets left open: feasible on wins, but never confirmed (a locked tiebreak got in the way
+  // each time). They count as possible, to be safe.
+  const unsettled = targets.map(() => false)
+  if (aborted && wanted) {
+    const others = managers.map((_, t) => t).filter((t) => t !== m)
+    const lower = new Int32Array(n)
+    const upper = new Int32Array(n)
+    const pairs = games.map(([a, b]) => [a, b] as const)
+    const open = targets.map((t, i) => (found[i] ? 0 : t))
+    const feasibleSet = open.map(() => false)
+    for (let w = lo[m]; w <= lo[m] + left[m] && wanted; w++) {
+      // Teams that can only finish above m, or only below it
+      let forced = 0
+      let barred = 0
+      others.forEach((t, i) => {
+        if (lo[t] > w || (outright && lo[t] === w)) forced |= 1 << i
+        if (lo[t] + left[t] < w || (outright && lo[t] + left[t] === w)) barred |= 1 << i
+      })
+      if (forced & barred) continue
+      for (let set = 0; set < 1 << others.length && wanted; set++) {
+        if ((set & forced) !== forced || set & barred) continue
+        const seed = seedAbove(set, others, div, k, dm)
+        const hits = open.map((t, i) => !found[i] && (t & (1 << (seed - 1))) !== 0)
+        if (!hits.some(Boolean)) continue
+        lower[m] = upper[m] = w - lo[m]
+        others.forEach((t, i) => {
+          if (set & (1 << i)) {
+            lower[t] = Math.max(0, w + Number(outright) - lo[t])
+            upper[t] = left[t]
+          } else {
+            lower[t] = 0
+            upper[t] = w - Number(outright) - lo[t]
+          }
+        })
+        const winners = assign(pairs, lower, upper, n)
+        if (!winners) continue
+        hits.forEach((h, i) => h && (feasibleSet[i] = true))
+        // Play it out exactly, as the search would at a leaf
+        games.forEach(([a, b], i) => settle(winners[i], winners[i] === a ? b : a))
+        record(leaf(), winners)
+        games.forEach(([a, b], i) => {
+          lo[winners[i]]--
+          left[a]++
+          left[b]++
+        })
+        fs.set(saved)
+      }
+    }
+    open.forEach((t, i) => (unsettled[i] = t !== 0 && !found[i] && feasibleSet[i]))
+  }
+
   if (witnesses) found.forEach((f, i) => !f && (witnesses[i] = null))
-  if (report) report.aborted = aborted
-  return found.map((f) => f || aborted)
+  if (report) report.aborted = unsettled.some(Boolean)
+  return found.map((f, i) => f || unsettled[i])
+}
+
+// m's seed when exactly the teams in `set` (bits over `others`) finish above it: division winners
+// first, then everyone else by record
+function seedAbove(set: number, others: number[], div: Int32Array, k: number, dm: number) {
+  const divsAbove = new Uint8Array(k)
+  let above = 0
+  others.forEach((t, i) => {
+    if (!(set & (1 << i))) return
+    above++
+    if (div[t] >= 0) divsAbove[div[t]] = 1
+  })
+  // m tops its division: only the other divisions' winners that finish above it come first
+  if (dm >= 0 && !divsAbove[dm]) {
+    let winners = 0
+    for (let d = 0; d < k; d++) winners += divsAbove[d]
+    return 1 + winners
+  }
+  // Otherwise every division winner comes first, then the rest of the teams above m
+  let winnersAbove = 0
+  for (let d = 0; d < k; d++) winnersAbove += divsAbove[d]
+  return k + 1 + above - winnersAbove
+}
+
+// A winner for every game in `games` so that each team t wins between lower[t] and upper[t] of
+// them, or null if there's none: a max flow with lower bounds (games -> teams, then a super source
+// and sink to carry the lower bounds)
+function assign(games: readonly (readonly [number, number])[], lower: Int32Array, upper: Int32Array, n: number) {
+  const G = games.length
+  let need = 0
+  for (let t = 0; t < n; t++) {
+    if (lower[t] > upper[t] || upper[t] < 0) return null
+    need += lower[t]
+  }
+  // Nodes: 0 super source, 1 super sink, 2 source, 3 sink, then games, then teams
+  const SS = 0
+  const TT = 1
+  const S = 2
+  const T = 3
+  const team = (t: number) => 4 + G + t
+  const flow = new MaxFlow(4 + G + n)
+  const gameEdge: number[][] = []
+  // Every game is played: a lower bound of 1 on source -> game
+  flow.add(S, TT, G)
+  games.forEach(([a, b], i) => {
+    flow.add(SS, 4 + i, 1)
+    gameEdge.push([flow.add(4 + i, team(a), 1), flow.add(4 + i, team(b), 1)])
+  })
+  for (let t = 0; t < n; t++) {
+    if (upper[t] > lower[t]) flow.add(team(t), T, upper[t] - lower[t])
+    if (lower[t]) flow.add(team(t), TT, lower[t])
+  }
+  if (need) flow.add(SS, T, need)
+  flow.add(T, S, G + need)
+  if (flow.run(SS, TT) < G + need) return null
+  return Int32Array.from(games, ([a, b], i) => (flow.used(gameEdge[i][0]) ? a : b))
+}
+
+// Dinic's max flow, for the small networks above
+class MaxFlow {
+  private head: Int32Array
+  private to: number[] = []
+  private cap: number[] = []
+  private next: number[] = []
+  private level: Int32Array
+  private iter: Int32Array
+  constructor(private size: number) {
+    this.head = new Int32Array(size).fill(-1)
+    this.level = new Int32Array(size)
+    this.iter = new Int32Array(size)
+  }
+  // Returns the edge's id
+  add(from: number, to: number, cap: number) {
+    const id = this.to.length
+    this.to.push(to, from)
+    this.cap.push(cap, 0)
+    this.next.push(this.head[from], this.head[to])
+    this.head[from] = id
+    this.head[to] = id + 1
+    return id
+  }
+  used(id: number) {
+    return this.cap[id + 1] > 0
+  }
+  run(s: number, t: number) {
+    let total = 0
+    const queue = new Int32Array(this.size)
+    for (;;) {
+      this.level.fill(-1)
+      this.level[s] = 0
+      let qh = 0
+      let qt = 0
+      queue[qt++] = s
+      while (qh < qt) {
+        const v = queue[qh++]
+        for (let e = this.head[v]; e !== -1; e = this.next[e]) {
+          if (this.cap[e] > 0 && this.level[this.to[e]] < 0) {
+            this.level[this.to[e]] = this.level[v] + 1
+            queue[qt++] = this.to[e]
+          }
+        }
+      }
+      if (this.level[t] < 0) return total
+      this.iter.set(this.head)
+      for (let f = this.push(s, t, Infinity); f > 0; f = this.push(s, t, Infinity)) total += f
+    }
+  }
+  private push(v: number, t: number, f: number): number {
+    if (v === t) return f
+    for (let e = this.iter[v]; e !== -1; e = this.iter[v] = this.next[e]) {
+      const u = this.to[e]
+      if (this.cap[e] <= 0 || this.level[u] !== this.level[v] + 1) continue
+      const d = this.push(u, t, Math.min(f, this.cap[e]))
+      if (d > 0) {
+        this.cap[e] -= d
+        this.cap[e ^ 1] += d
+        return d
+      }
+    }
+    return 0
+  }
 }
 
 // mulberry32: a small seeded PRNG, uniform on [0, 1)

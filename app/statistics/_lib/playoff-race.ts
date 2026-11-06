@@ -245,8 +245,9 @@ function raceModel(league: League, results: SeasonResult[]) {
       return { playoffs, division, seeds, next }
     }
     // Whether winning out settles m landing in `seeds`: if it can't land there at all, winning out
-    // overshoots; if it can't miss, m controls it; otherwise m needs help. Null if the search can't
-    // settle it within the example budget: it's a label, not worth seconds of search.
+    // overshoots; if it can't miss, m controls it; if it can only miss level on wins with someone,
+    // only a tiebreak stands in the way; otherwise m needs help. Null if the search can't settle it
+    // within the example budget: it's a label, not worth seconds of search.
     const destiny = (m: string, seeds: number): Destiny | null => {
       const winOut = ownWeeks(m).map((week) => ({ week, win: true }))
       const reach = check(m, [seeds], winOut, false, true)[0]
@@ -254,7 +255,9 @@ function raceModel(league: League, results: SeasonResult[]) {
       if (!reach.possible) return "overshoots"
       const miss = check(m, [ALL & ~seeds], winOut, false, true)[0]
       if (!miss.sure) return null
-      return miss.possible ? "needs-help" : "controls"
+      if (!miss.possible) return "controls"
+      const outright = check(m, [ALL & ~seeds], winOut, true, true)[0]
+      return outright.sure && !outright.possible ? "tiebreak" : "needs-help"
     }
     return { winTotals, headline, detail, runs, verify, destiny, wins, pf }
   }

@@ -41,15 +41,16 @@ export type PathOutcome = {
   // common first; none when too few runs got there
   records: { won: number; lost: number; share: number }[]
   // Whether it's in the manager's own hands, from the exhaustive check: winning out guarantees it
-  // ("controls"), winning out can still fall short ("needs-help"), or winning out overshoots it
-  // ("overshoots"). Null when settled already, for missing the playoffs, or when the check ran out
-  // of budget.
+  // ("controls"), winning out only falls short by losing a tie on wins on points for ("tiebreak"),
+  // winning out can fall short outright ("needs-help"), or winning out overshoots it
+  // ("overshoots"). Null when settled already, for missing the playoffs, or when the check couldn't
+  // settle it.
   destiny: Destiny | null
   // How often the runs where the manager won out got there; null when too few runs won out
   ifWinOut: number | null
 }
 
-export type Destiny = "controls" | "needs-help" | "overshoots"
+export type Destiny = "controls" | "tiebreak" | "needs-help" | "overshoots"
 
 // One line of the final standings, best seed first. `tied`: level on wins with someone, so this
 // place depends on points for; the order shown is one the tiebreak would need to take.

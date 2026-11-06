@@ -62,7 +62,7 @@ export function PathTo({
       id="path-to"
       title={`${manager}: ${outcome.label}`}
       description="Pick a manager and an outcome to see how likely it is, whether it's in their own hands, the records it takes and the games that matter most for it."
-      method={`From the same ${runs.toLocaleString("en-US")} simulated seasons as the playoff odds. A game's odds are how often the outcome happens after each result. "In their hands" means winning out guarantees it and "needs help" means even winning out can fall short; both, like any 0% or 100%, are checked against every way the remaining games could go. For an outcome no simulated season reached, that same search supplies one season where it still happens, preferring one where the manager finishes alone on their record.`}
+      method={`From the same ${runs.toLocaleString("en-US")} simulated seasons as the playoff odds. A game's odds are how often the outcome happens after each result. "In their hands" means winning out guarantees it and "needs help" means even winning out can fall short (on a points-for tiebreak only, when every way it falls short leaves them level on wins with someone); all of these, like any 0% or 100%, are checked against every way the remaining games could go. For an outcome no simulated season reached, that same search supplies one season where it still happens, preferring one where the manager finishes alone on their record.`}
       controls={<Picker label="Manager" value={manager} options={managers} onChange={onManager} />}
     >
       <div className="grid gap-6">
@@ -182,7 +182,9 @@ function Headline({
   const destiny =
     outcome.destiny === "controls"
       ? { value: "In their hands", detail: `Winning out (${winOut}) guarantees it` }
-      : outcome.destiny === "needs-help"
+      : outcome.destiny === "tiebreak"
+        ? { value: "Needs help", detail: `Winning out (${winOut}) only falls short on a points-for tiebreak` }
+        : outcome.destiny === "needs-help"
         ? {
             value: "Needs help",
             detail: outcome.ifWinOut != null ? `Even winning out (${winOut}): ${oddsFmt(outcome.ifWinOut)}` : "Winning out isn't enough on its own",
