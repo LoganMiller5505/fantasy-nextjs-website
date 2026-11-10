@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { unstable_cache } from "next/cache"
 import { cache } from "react"
 import { getLeague, type League } from "@/lib/league"
+import { decodePicks, encodePicks, toForced } from "./picks"
 import { oddsAfterWeek, playedWeeks, playoffRace, type Race } from "./playoff-race"
 import { latestYear, playedSides, seasonResults, seasonsOf } from "./stats"
 
@@ -66,3 +67,14 @@ export const getPlayoffRace = cache(async (): Promise<Race | null> => {
     divisionByWeek: trend.map((t) => t!.division),
   }
 })
+
+// The odds with a what-if's picked results in (see picks.ts), for Outlook's what-if mode. Each
+// scenario is worked out once and kept, like the odds now. Null without a race, or without a pick.
+export async function getScenarioRace(text: string) {
+  const now = await getCurrentRace()
+  if (!now) return null
+  const picks = decodePicks(text, now.paths.games.length)
+  if (picks.every((p) => p == null)) return null
+  const { league, sides, results } = await getStats()
+  return kept(["whatif", leagueKey(league), encodePicks(picks)], () => playoffRace(league, sides, results, toForced(picks)))
+}

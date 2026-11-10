@@ -67,6 +67,7 @@ const percent = (share: number) => Math.min(99.9, Math.max(0.1, round(share * 10
 export function pathsTo({
   managers,
   games,
+  forced = [],
   runs,
   wins,
   losses,
@@ -79,6 +80,9 @@ export function pathsTo({
 }: {
   managers: string[]
   games: Game[]
+  // What-if picks, by place in `games` (true: the home side wins). They count as already played:
+  // in the record a manager starts from, and not among the games still theirs to win or lose.
+  forced?: (boolean | null)[]
   runs: Runs
   wins: Map<string, number>
   losses: Map<string, number>
@@ -102,7 +106,11 @@ export function pathsTo({
 
   const byManager = Object.fromEntries(
     managers.map((m, mi) => {
-      const own = games.flatMap((x, g) => (x.manager === m || x.opponent === m ? [g] : []))
+      const mine = (x: Game) => x.manager === m || x.opponent === m
+      const own = games.flatMap((x, g) => (mine(x) && forced[g] == null ? [g] : []))
+      // The picked results, as a starting record
+      const pickedWon = games.filter((x, g) => mine(x) && forced[g] != null && forced[g] === (x.manager === m)).length
+      const pickedLost = games.filter((x, g) => mine(x) && forced[g] != null).length - pickedWon
       // m's wins from here on, in each run
       const ownWon = Uint8Array.from({ length: R }, (_, r) =>
         own.filter((g) => (runs.homeWon[r * G + g] === 1) === (games[g].manager === m)).length
@@ -130,7 +138,7 @@ export function pathsTo({
         }
         if (state) return outcome
         if (key !== "miss" && own.length) outcome.destiny = destiny(m, seeds)
-        if (wonOut >= MIN_RUNS) {
+        if (own.length && wonOut >= MIN_RUNS) {
           const reached = hitRuns.filter((r) => ownWon[r] === own.length).length
           outcome.ifWinOut = percent(reached / wonOut)
         }
@@ -173,7 +181,7 @@ export function pathsTo({
           .filter((x) => x != null)
           .map((x) => x!)
         const enough = hits >= MIN_RUNS
-        if (enough) {
+        if (enough && own.length) {
           const byRecord = new Array<number>(own.length + 1).fill(0)
           for (const r of hitRuns) byRecord[ownWon[r]]++
           outcome.records = byRecord
@@ -198,7 +206,7 @@ export function pathsTo({
 
         return outcome
       })
-      return [m, { wins: wins.get(m)!, losses: losses.get(m)!, outcomes: paths }]
+      return [m, { wins: wins.get(m)! + pickedWon, losses: losses.get(m)! + pickedLost, outcomes: paths }]
     })
   )
 

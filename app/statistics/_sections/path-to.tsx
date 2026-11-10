@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { unpack, type PathOutcome, type PathResult, type Paths } from "../_lib/paths"
+import type { Pick } from "../_lib/picks"
 import { ordinal, record } from "../_lib/stats"
 import { DotPlot, Panel, Picker, SERIES, SimpleTable, StatTile, TileGrid, oddsFmt } from "../_components/ui"
 
@@ -31,6 +32,8 @@ const LEGEND = [
 // outcome here.
 export function PathTo({
   paths,
+  baseline,
+  picks,
   runs,
   spots,
   divisionSeeds,
@@ -40,6 +43,9 @@ export function PathTo({
   onOutcome,
 }: {
   paths: Paths
+  // In a what-if: the paths as things stand, and the picks (by place in `paths.games`)
+  baseline?: Paths
+  picks?: Pick[]
   runs: number
   spots: number
   divisionSeeds: number
@@ -51,7 +57,11 @@ export function PathTo({
   const managers = Object.keys(paths.byManager).sort()
   const mine = paths.byManager[manager]
   const outcome = mine.outcomes.find((o) => o.key === key) ?? mine.outcomes[0]
-  const gamesLeft = paths.games.filter((x) => x.home === manager || x.away === manager).length
+  // Games still open: a picked one counts as played
+  const theirs = (x: Paths["games"][number]) => x.home === manager || x.away === manager
+  const gamesLeft = paths.games.filter((x, g) => theirs(x) && !picks?.[g]).length
+  const pickedGames = paths.games.filter((x, g) => theirs(x) && picks?.[g]).length
+  const now = baseline?.byManager[manager]?.outcomes.find((o) => o.key === outcome.key)?.odds
   const final = (won: number, lost: number) => record(mine.wins + won, mine.losses + lost)
   const lower = outcome.label.charAt(0).toLowerCase() + outcome.label.slice(1)
   const outcomes = mine.outcomes.filter((o) => !o.key.startsWith("seed-"))
@@ -61,7 +71,7 @@ export function PathTo({
     <Panel
       id="path-to"
       title={`${manager}: ${outcome.label}`}
-      description="Pick a manager and an outcome to see how likely it is, whether it's in their own hands, the records it takes and the games that matter most for it."
+      description={`Pick a manager and an outcome to see how likely it is, whether it's in their own hands, the records it takes and the games that matter most for it.${picks ? " With the what-if's picked results in: they count as played, and the rest is what's left to decide." : ""}`}
       method={`From the same ${runs.toLocaleString("en-US")} simulated seasons as the playoff odds. A game's odds are how often the outcome happens after each result. "In their hands" means winning out guarantees it and "needs help" means even winning out can fall short (on a points-for tiebreak only, when every way it falls short leaves them level on wins with someone); all of these, like any 0% or 100%, are checked against every way the remaining games could go. For an outcome no simulated season reached, that same search supplies one season where it still happens, preferring one where the manager finishes alone on their record.`}
       controls={<Picker label="Manager" value={manager} options={managers} onChange={onManager} />}
     >
@@ -122,14 +132,23 @@ export function PathTo({
               </p>
               <p className="text-muted-foreground">
                 {outcome.state === "certain"
-                  ? `Every way the remaining games can go gets ${manager} there.`
-                  : `No combination of the remaining results gets ${manager} there.`}
+                  ? `Every way the remaining games can go gets ${manager} there${picks ? ", with the what-if's picks" : ""}.`
+                  : `No combination of the remaining results gets ${manager} there${picks ? ", with the what-if's picks" : ""}.`}
+                {now != null && now !== outcome.odds && ` Without the picks: ${oddsFmt(now)}.`}
               </p>
             </div>
           </div>
         ) : (
           <>
-            <Headline outcome={outcome} manager={manager} record={record(mine.wins, mine.losses)} gamesLeft={gamesLeft} final={final} />
+            <Headline
+              outcome={outcome}
+              manager={manager}
+              record={record(mine.wins, mine.losses)}
+              recordLabel={pickedGames ? "Record with picks" : "Record now"}
+              gamesLeft={gamesLeft}
+              now={now}
+              final={final}
+            />
             {outcome.records.length > 1 && <RecordsItTakes outcome={outcome} lower={lower} final={final} />}
             {(outcome.own.length > 0 || outcome.games.length > 0) && (
               <GamesThatMatter outcome={outcome} manager={manager} paths={paths} />
@@ -146,6 +165,7 @@ export function PathTo({
                 runs={runs}
                 spots={spots}
                 divisionSeeds={divisionSeeds}
+                picks={picks}
                 final={final}
               />
             )}
@@ -164,17 +184,22 @@ export function PathTo({
 type Final = (won: number, lost: number) => string
 
 // Chance, record now, the usual finish, and whether it's in their own hands
+// `now`: the chance without the what-if's picks, while there are some
 function Headline({
   outcome,
   manager,
-  record: now,
+  record: current,
+  recordLabel,
   gamesLeft,
+  now,
   final,
 }: {
   outcome: PathOutcome
   manager: string
   record: string
+  recordLabel: string
   gamesLeft: number
+  now?: number
   final: Final
 }) {
   const usual = outcome.records[0]
@@ -194,8 +219,12 @@ function Headline({
           : null
   return (
     <TileGrid wide={destiny ? 4 : 3}>
-      <StatTile label="Chance" value={oddsFmt(outcome.odds)} detail={`${manager} to ${outcome.label.charAt(0).toLowerCase() + outcome.label.slice(1)}`} />
-      <StatTile label="Record now" value={now} detail={`${gamesLeft} game${gamesLeft === 1 ? "" : "s"} left`} />
+      <StatTile
+        label="Chance"
+        value={oddsFmt(outcome.odds)}
+        detail={`${manager} to ${outcome.label.charAt(0).toLowerCase() + outcome.label.slice(1)}${now != null ? ` · ${oddsFmt(now)} without the picks` : ""}`}
+      />
+      <StatTile label={recordLabel} value={current} detail={`${gamesLeft} game${gamesLeft === 1 ? "" : "s"} left${recordLabel === "Record now" ? "" : " to decide"}`} />
       <StatTile
         label={usual || !outcome.longShot ? "Most common finish" : "Example finish"}
         value={usual ? final(usual.won, usual.lost) : outcome.longShot ? final(outcome.longShot.won, outcome.longShot.lost) : "—"}
@@ -327,6 +356,7 @@ function LongShot({
   runs,
   spots,
   divisionSeeds,
+  picks,
   final,
 }: {
   outcome: PathOutcome
@@ -335,6 +365,7 @@ function LongShot({
   runs: number
   spots: number
   divisionSeeds: number
+  picks?: Pick[]
   final: Final
 }) {
   const shot = outcome.longShot!
@@ -345,13 +376,13 @@ function LongShot({
         ? `loses out (${final(shot.won, shot.lost)})`
         : `goes ${record(shot.won, shot.lost)} (${final(shot.won, shot.lost)})`
   // Each week's results, the manager's own game first
-  const weeks = new Map<string, { r: PathResult; winner: string; loser: string; mine: boolean }[]>()
+  const weeks = new Map<string, { r: PathResult; winner: string; loser: string; mine: boolean; picked: boolean }[]>()
   for (const r of shot.results) {
     const { g, homeWon } = unpack(r)
     const x = paths.games[g]
     const [winner, loser] = homeWon ? [x.home, x.away] : [x.away, x.home]
     const list = weeks.get(x.week) ?? []
-    list.push({ r, winner, loser, mine: winner === manager || loser === manager })
+    list.push({ r, winner, loser, mine: winner === manager || loser === manager, picked: !!picks?.[g] })
     weeks.set(x.week, list)
   }
   const byWeek = [...weeks]
@@ -418,10 +449,17 @@ function LongShot({
               <div key={week} className="rounded-md border p-3">
                 <div className="text-muted-foreground mb-2 text-xs font-medium">{week}</div>
                 <ul className="grid gap-1">
-                  {list.map(({ r, winner, loser, mine }) => (
+                  {list.map(({ r, winner, loser, mine, picked }) => (
                     <li key={r} className={cn("-mx-1.5 flex items-baseline justify-between gap-2 rounded px-1.5 py-0.5", mine && TINT)}>
                       <span className="font-medium">{winner}</span>
-                      <span className="text-muted-foreground text-xs">beat {loser}</span>
+                      <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+                        {picked && (
+                          <Badge variant="outline" className="h-4 px-1 text-[0.65rem]">
+                            picked
+                          </Badge>
+                        )}
+                        beat {loser}
+                      </span>
                     </li>
                   ))}
                 </ul>

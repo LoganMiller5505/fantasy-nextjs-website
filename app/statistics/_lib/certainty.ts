@@ -40,7 +40,8 @@ const MEMORY = 500_000
 // example for each target found: the winner of every game in `remaining`, in the same order.
 // `outright` only counts seasons where nobody else finishes on m's number of wins, so m's seed
 // doesn't depend on points for at all (for examples; never for deciding a 0% or 100%). `budget`
-// caps the search, for an example that's only nice to have. `report.aborted` says whether anything
+// caps the search, for an example that's only nice to have. `forced`: games whose winner is already
+// decided (a what-if pick), by place in `remaining`, settled before anything else. `report.aborted` says whether anything
 // was left unsettled, so an answer of "possible" can be told apart from "couldn't finish".
 export function reachable(
   setup: RaceSetup,
@@ -51,12 +52,14 @@ export function reachable(
   targets: number[],
   {
     fixed = [],
+    forced = [],
     witnesses,
     outright = false,
     budget = BUDGET,
     report,
   }: {
     fixed?: { week: number; win: boolean }[]
+    forced?: { game: number; homeWon: boolean }[]
     witnesses?: (string[] | null)[]
     outright?: boolean
     budget?: number
@@ -99,6 +102,15 @@ export function reachable(
     left[b]++
   }
   const settled: { at: number; winner: number }[] = []
+  for (const { game, homeWon } of forced) {
+    const g = games.find((x) => x[3] === game)
+    if (!g) continue
+    const [w, l] = homeWon ? [g[0], g[1]] : [g[1], g[0]]
+    settle(w, l)
+    settled.push({ at: game, winner: w })
+    games = games.filter((x) => x !== g)
+  }
+  // A week whose game of m's is forced is no longer in `games`, so a `fixed` for it is skipped
   for (const { week, win } of fixed) {
     const g = games.find(([a, b, w]) => w === week && (a === m || b === m))
     if (!g) continue

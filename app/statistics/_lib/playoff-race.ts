@@ -9,6 +9,7 @@ import type { League } from "@/lib/league"
 import { reachable, seedMask } from "./certainty"
 import { pathsTo, type Destiny, type Outcome } from "./paths"
 import { latestYear, managersIn, ordinal, record, round, sum, type SeasonResult, type Side } from "./stats"
+import { provenStatus } from "./status"
 
 const RUNS = 100_000
 // Search nodes to spend looking for a nicer example season (outright, or winning or losing out)
@@ -79,8 +80,10 @@ function raceModel(league: League, results: SeasonResult[]) {
   // drawn around their average so far. The generator restarts from the same seed every time, so
   // the latest week's odds match the ones shown elsewhere on the page.
   type Game = { manager: string; opponent: string; week_no: number }
-  // `keep`: also keep every run's seeds and results, for the paths to each outcome
-  const simulate = (played: Side[], remaining: Game[], keep = false) => {
+  // `keep`: also keep every run's seeds and results, for the paths to each outcome. `forced`: what-if
+  // picks, by place in `remaining` (true: the home side wins); a picked game is played as usual but
+  // always goes the picked way, which says nothing new about how good either team is
+  const simulate = (played: Side[], remaining: Game[], keep = false, forced: (boolean | null)[] = []) => {
     const wins = new Map(managers.map((m) => [m, played.filter((s) => s.manager === m && s.win).length]))
     const pf = new Map(managers.map((m) => [m, sum(played.filter((s) => s.manager === m).map((s) => s.pf))]))
 
@@ -124,8 +127,15 @@ function raceModel(league: League, results: SeasonResult[]) {
       const p = new Map(pf)
       const level = new Map(managers.map((m) => [m, model.get(m)!.mean + model.get(m)!.doubt * z()]))
       for (const [i, g] of remaining.entries()) {
-        const a = level.get(g.manager)! + model.get(g.manager)!.sd * z()
-        const b = level.get(g.opponent)! + model.get(g.opponent)!.sd * z()
+        const draw = () => [level.get(g.manager)! + model.get(g.manager)!.sd * z(), level.get(g.opponent)! + model.get(g.opponent)!.sd * z()]
+        let [a, b] = draw()
+        // A picked game: the week is replayed until the pick wins it, and if that's taking too
+        // long (a big mismatch), the two scores are swapped
+        const pick = forced[i]
+        if (pick != null) {
+          for (let tries = 0; tries < 50 && a > b !== pick; tries++) [a, b] = draw()
+          if (a > b !== pick) [a, b] = [b, a]
+        }
         p.set(g.manager, p.get(g.manager)! + a)
         p.set(g.opponent, p.get(g.opponent)! + b)
         const winner = a > b ? g.manager : g.opponent
@@ -162,6 +172,7 @@ function raceModel(league: League, results: SeasonResult[]) {
     // the target, an example season when one was found, and `sure`: false when the search ran out of
     // budget before settling it (it then counts as possible, to be safe)
     const checked = new Map<string, { possible: boolean; witness: string[] | null; sure: boolean }>()
+    const picks = forced.flatMap((homeWon, game) => (homeWon == null ? [] : [{ game, homeWon }]))
     // `example`: only after an example season, so a small search budget will do
     const check = (m: string, targets: number[], fixed: { week: number; win: boolean }[] = [], outright = false, example = false) => {
       const id = (t: number) => `${m}|${t}|${fixed.map((f) => `${f.week}${f.win}`).join()}|${outright}|${example}`
@@ -171,6 +182,7 @@ function raceModel(league: League, results: SeasonResult[]) {
         const report = { aborted: false }
         const possible = reachable(setup, wins, pf, remaining, m, open, {
           fixed,
+          forced: picks,
           witnesses,
           outright,
           budget: example ? EXAMPLE_BUDGET : undefined,
@@ -199,7 +211,9 @@ function raceModel(league: League, results: SeasonResult[]) {
     // Outright first (nobody else on m's number of wins, so points for doesn't come into it); failing
     // that, with a tie: m winning out, then losing out, then whatever the search found first.
     let outrightTries = 0
-    const ownWeeks = (m: string) => remaining.filter((g) => g.manager === m || g.opponent === m).map((g) => g.week_no)
+    // m's games still open: winning or losing out means the rest of the season, given the picks
+    const ownWeeks = (m: string) =>
+      remaining.filter((g, i) => forced[i] == null && (g.manager === m || g.opponent === m)).map((g) => g.week_no)
     const verify = (m: string, seeds: number, hits: number) => {
       const result = odds(m, [{ hits, total: RUNS, event: seeds }])[0]
       if (hits > 0 || result === 0) return { odds: result, witness: null }
@@ -233,7 +247,8 @@ function raceModel(league: League, results: SeasonResult[]) {
         { hits: divisionTitles.get(m)!, total: RUNS, event: TITLE },
         ...counts.map((hits, i) => ({ hits, total: RUNS, event: seedMask(i + 1, i + 1) })),
       ])
-      // Null for a manager without a game next week (or, in the odd case, never on one side of it)
+      // Null for a manager without a game next week, or whose game is a what-if pick (they then
+      // only ever win or only ever lose it)
       const a = after.get(m)!
       const next =
         a.won && a.lost
@@ -301,8 +316,10 @@ export type Race = NonNullable<ReturnType<typeof playoffRace>> & {
 }
 
 // The odds now: each manager's playoff, seed and division chances, clinched and eliminated, and
-// the paths to every outcome
-export function playoffRace(league: League, sides: Side[], results: SeasonResult[]) {
+// the paths to every outcome. `forced`: a what-if, as the picked winner of any remaining games (by
+// place in the schedule, `paths.games`; true: the home side wins, null: open); everything is then
+// worked out as if those results were in.
+export function playoffRace(league: League, sides: Side[], results: SeasonResult[], forced?: (boolean | null)[]) {
   const model = raceModel(league, results)
   if (!model) return null
   const { year, remaining, managers, spots, byes, division, divisions, ALL, IN, TITLE, seedOrder, simulate } = model
@@ -310,29 +327,33 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
   const wins = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && s.win).length]))
   const losses = new Map(managers.map((m) => [m, season.filter((s) => s.manager === m && !s.win).length]))
   const pf = new Map(managers.map((m) => [m, sum(season.filter((s) => s.manager === m).map((s) => s.pf))]))
-  const now = simulate(season, remaining, true)
+  const picks = forced?.length === remaining.length ? forced : remaining.map(() => null)
+  const now = simulate(season, remaining, true, picks)
   const { winTotals, detail } = now
 
-  // Clinched and eliminated ignore the points tiebreak, so a tie on wins always counts as a threat,
-  // and they assume the worst about who wins the other divisions. Neither badge can turn out wrong;
-  // they just appear later than a full tiebreak check would show them.
-  const left = new Map(managers.map((m) => [m, remaining.filter((g) => g.manager === m || g.opponent === m).length]))
-  const best = (m: string) => wins.get(m)! + left.get(m)!
-  const status = (m: string) => {
-    const others = managers.filter((o) => o !== m)
-    const rivals = others.filter((o) => division.get(o) === division.get(m))
-    const winsDivision = division.get(m) != null && rivals.every((o) => best(o) < wins.get(m)!)
-    const canWinDivision = division.get(m) != null && rivals.every((o) => wins.get(o)! <= best(m))
-    // At worst, everyone who can still match m's record finishes ahead, and so does a weaker
-    // winner of every other division
-    const threats = others.filter((o) => best(o) >= wins.get(m)!).length
-    const otherWinners = divisions.filter((d) => d !== division.get(m)).length
-    if (winsDivision || threats + otherWinners < spots) return "clinched" as const
-    // Teams already out of reach of m's best record are seeded ahead of m whenever m doesn't win
-    // its division
-    if (!canWinDivision && others.filter((o) => wins.get(o)! > best(m)).length >= spots) return "eliminated" as const
-    return null
+  // Clinched and eliminated on wins alone (status.ts), with the picked results in: neither badge
+  // can turn out wrong
+  const decided = new Map(wins)
+  const left = new Map(managers.map((m) => [m, 0]))
+  remaining.forEach((g, i) => {
+    const pick = picks[i]
+    if (pick == null) {
+      left.set(g.manager, left.get(g.manager)! + 1)
+      left.set(g.opponent, left.get(g.opponent)! + 1)
+    } else {
+      const winner = pick ? g.manager : g.opponent
+      decided.set(winner, decided.get(winner)! + 1)
+    }
+  })
+  const setup = {
+    managers,
+    wins: Object.fromEntries(decided),
+    left: Object.fromEntries(left),
+    division: Object.fromEntries(managers.map((m) => [m, division.get(m) ?? null])),
+    divisions,
+    spots,
   }
+  const status = (m: string) => provenStatus(m, setup)
 
   const rows = managers
     .map((m) => {
@@ -375,6 +396,7 @@ export function playoffRace(league: League, sides: Side[], results: SeasonResult
   const paths = pathsTo({
     managers,
     games: remaining,
+    forced: picks,
     runs: now.runs!,
     wins,
     losses,
