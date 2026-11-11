@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { unpack, type PathOutcome, type PathResult, type Paths } from "../_lib/paths"
+import { describeSeeds } from "../_lib/destiny"
 import type { Pick } from "../_lib/picks"
 import { ordinal, record } from "../_lib/stats"
 import { DotPlot, Panel, Picker, SERIES, SimpleTable, StatTile, TileGrid, oddsFmt } from "../_components/ui"
@@ -147,6 +148,8 @@ export function PathTo({
               recordLabel={pickedGames ? "Record with picks" : "Record now"}
               gamesLeft={gamesLeft}
               now={now}
+              seedsIf={{ win: mine.winOut, lose: mine.loseOut }}
+              spots={spots}
               final={final}
             />
             {outcome.records.length > 1 && <RecordsItTakes outcome={outcome} lower={lower} final={final} />}
@@ -192,6 +195,8 @@ function Headline({
   recordLabel,
   gamesLeft,
   now,
+  seedsIf,
+  spots,
   final,
 }: {
   outcome: PathOutcome
@@ -200,23 +205,40 @@ function Headline({
   recordLabel: string
   gamesLeft: number
   now?: number
+  // The seeds winning out and losing out can end in (null without games left)
+  seedsIf: { win: number | null; lose: number | null }
+  spots: number
   final: Final
 }) {
   const usual = outcome.records[0]
+  // Where winning (and losing) out can leave them: every Destiny label is read off the first
   const winOut = final(gamesLeft, 0)
-  const destiny =
-    outcome.destiny === "controls"
-      ? { value: "In their hands", detail: `Winning out (${winOut}) guarantees it` }
-      : outcome.destiny === "tiebreak"
-        ? { value: "Needs help", detail: `Winning out (${winOut}) only falls short on a points-for tiebreak` }
-        : outcome.destiny === "needs-help"
-        ? {
-            value: "Needs help",
-            detail: outcome.ifWinOut != null ? `Even winning out (${winOut}): ${oddsFmt(outcome.ifWinOut)}` : "Winning out isn't enough on its own",
-          }
-        : outcome.destiny === "overshoots"
-          ? { value: "Past this seed", detail: `Winning out (${winOut}) takes them past this seed` }
-          : null
+  const ends = seedsIf.win != null ? describeSeeds(seedsIf.win, spots) : null
+  const settles = {
+    controls: { value: "In their hands", detail: `Winning out (${winOut}) guarantees it${ends ? `: ${ends}` : ""}` },
+    floor: { value: "This or better", detail: `Winning out (${winOut}) ends ${ends}: never lower than this` },
+    tiebreak: { value: "Needs help", detail: `Winning out (${winOut}) ends ${ends}; lower only by losing a points-for tie` },
+    "needs-help": {
+      value: "Needs help",
+      detail: `Even winning out (${winOut}) ends ${ends}${outcome.ifWinOut != null ? `, getting there ${oddsFmt(outcome.ifWinOut)} of the time` : ""}`,
+    },
+    overshoots: { value: "Past this", detail: `Winning out (${winOut}) ends ${ends}: always higher` },
+    misses: { value: "Not by winning out", detail: `Winning out (${winOut}) ends ${ends}, never here` },
+  } as const
+  const shown = outcome.destiny ? settles[outcome.destiny] : null
+  const destiny = shown && {
+    value: shown.value,
+    detail: (
+      <>
+        {shown.detail}
+        {seedsIf.lose != null && (
+          <span className="block">
+            Losing out ({final(0, gamesLeft)}): {describeSeeds(seedsIf.lose, spots)}
+          </span>
+        )}
+      </>
+    ),
+  }
   return (
     <TileGrid wide={destiny ? 4 : 3}>
       <StatTile

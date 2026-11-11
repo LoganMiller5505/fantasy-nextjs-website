@@ -3,6 +3,7 @@
 // the remaining games that matter most for it. Odds of exactly 0% or 100% come from the
 // exhaustive check in certainty.ts, like everywhere else on the page.
 
+import type { Destiny, OutFacts } from "./destiny"
 import { round } from "./stats"
 
 type Game = { manager: string; opponent: string; week_no: number }
@@ -40,17 +41,14 @@ export type PathOutcome = {
   // The manager's final records across the runs that got there (record = wins from here on), most
   // common first; none when too few runs got there
   records: { won: number; lost: number; share: number }[]
-  // Whether it's in the manager's own hands, from the exhaustive check: winning out guarantees it
-  // ("controls"), winning out only falls short by losing a tie on wins on points for ("tiebreak"),
-  // winning out can fall short outright ("needs-help"), or winning out overshoots it
-  // ("overshoots"). Null when settled already, for missing the playoffs, or when the check couldn't
-  // settle it.
+  // What winning out does for it, from the seeds winning out can end in (destiny.ts has the labels).
+  // Null when settled already, for missing the playoffs, or when the check couldn't settle it.
   destiny: Destiny | null
   // How often the runs where the manager won out got there; null when too few runs won out
   ifWinOut: number | null
 }
 
-export type Destiny = "controls" | "tiebreak" | "needs-help" | "overshoots"
+export type { Destiny } from "./destiny"
 
 // One line of the final standings, best seed first. `tied`: level on wins with someone, so this
 // place depends on points for; the order shown is one the tiebreak would need to take.
@@ -74,6 +72,7 @@ export function pathsTo({
   outcomes,
   verify,
   destiny,
+  out,
   pf,
   division,
   seedOrder,
@@ -93,6 +92,8 @@ export function pathsTo({
   verify: (m: string, seeds: number, hits: number) => { odds: number; witness: string[] | null }
   // Whether winning out settles m landing in `seeds`, exhaustively (see Destiny)
   destiny: (m: string, seeds: number) => Destiny | null
+  // The seeds m can finish in by winning (or losing) every game left, exhaustively; null without games left
+  out: (m: string, win: boolean) => OutFacts | null
   // Points for so far, each manager's division, and the seeding rule (wins, then the second map)
   pf: Map<string, number>
   division: Map<string, string | null | undefined>
@@ -149,7 +150,11 @@ export function pathsTo({
             const won = own.filter((g) => witness[g] === m).length
             const final = new Map(managers.map((t) => [t, wins.get(t)! + witness.filter((w) => w === t).length]))
             const tiebreak = managers.some((t) => t !== m && final.get(t) === final.get(m))
-            const order = tiebreakOrder(managers, m, seeds, final, pf, seedOrder)
+            // y can't overtake x on points: behind on points, and no games left or only losses to x
+            const locked = (y: string, x: string) =>
+              pf.get(x)! > pf.get(y)! &&
+              games.every((g, i) => (g.manager !== y && g.opponent !== y) || (witness[i] === x && (g.manager === x || g.opponent === x)))
+            const order = tiebreakOrder(managers, m, seeds, final, pf, seedOrder, locked)
             const standings = order.map((t) => {
               const played = games.filter((x) => x.manager === t || x.opponent === t).length
               const won = final.get(t)!
@@ -206,7 +211,9 @@ export function pathsTo({
 
         return outcome
       })
-      return [m, { wins: wins.get(m)! + pickedWon, losses: losses.get(m)! + pickedLost, outcomes: paths }]
+      // Where winning or losing out can leave them, as seed masks (the Destiny tile spells them out)
+      const seedsIf = (win: boolean) => (own.length ? (out(m, win)?.seeds ?? null) : null)
+      return [m, { wins: wins.get(m)! + pickedWon, losses: losses.get(m)! + pickedLost, outcomes: paths, winOut: seedsIf(true), loseOut: seedsIf(false) }]
     })
   )
 
@@ -216,18 +223,22 @@ export function pathsTo({
 export type Paths = ReturnType<typeof pathsTo>
 
 // The seeding for final `wins`, with teams level on wins put in an order points for could still
-// take that lands m in `seeds`. Tries m at every place in its tied group with every tied group
-// shuffled (from a fixed seed, so the page doesn't change between builds); falls back to points for
-// so far.
+// take that lands m in `seeds`. Points for can break a tie either way, except where it's locked
+// (`locked(y, x)`: y can't overtake x, as in certainty.ts), so every order tried respects the
+// locks: each tied group is ordered at random but only ever placing a team once everyone it's
+// locked below is placed, with m tried at every place it can take (from a fixed seed, so the page
+// doesn't change between builds). Falls back to points for so far.
 function tiebreakOrder(
   managers: string[],
   m: string,
   seeds: number,
   wins: Map<string, number>,
   pf: Map<string, number>,
-  seedOrder: (wins: Map<string, number>, tiebreak: Map<string, number>) => string[]
+  seedOrder: (wins: Map<string, number>, tiebreak: Map<string, number>) => string[],
+  locked: (y: string, x: string) => boolean
 ) {
   const lands = (order: string[]) => ((1 << order.indexOf(m)) & seeds) !== 0
+  // Points for so far always respects the locks (a lock needs the team above to be ahead on points)
   const byPf = seedOrder(wins, pf)
   if (lands(byPf)) return byPf
   const groups = [...new Set(managers.map((t) => wins.get(t)!))]
@@ -235,19 +246,22 @@ function tiebreakOrder(
     .filter((g) => g.length > 1)
   if (!groups.length) return byPf
   let state = 12345
-  const rand = () => ((state = (Math.imul(state, 1103515245) + 12345) >>> 0) / 4294967296)
+  const rand = () => (state = (Math.imul(state, 1103515245) + 12345) >>> 0) / 4294967296
   for (let attempt = 0; attempt < 5000; attempt++) {
     const p = new Map(pf)
     for (const group of groups) {
-      const order = group.slice()
-      for (let i = order.length - 1; i > 0; i--) {
-        const j = Math.floor(rand() * (i + 1))
-        ;[order[i], order[j]] = [order[j], order[i]]
-      }
-      // m's place in its own group steps through every position in turn
-      if (order.includes(m)) {
-        order.splice(order.indexOf(m), 1)
-        order.splice(attempt % group.length, 0, m)
+      // A random order of the group that respects its locks; m goes as early as it's allowed
+      // after `attempt % size` others, so every place m can take gets tried
+      const order: string[] = []
+      const left = new Set(group)
+      const mWait = group.includes(m) ? attempt % group.length : 0
+      while (left.size) {
+        const ready = [...left].filter((y) => ![...left].some((x) => x !== y && locked(y, x)))
+        const others = ready.filter((t) => t !== m)
+        const pickM = ready.includes(m) && (order.length >= mWait || !others.length)
+        const next = pickM ? m : others[Math.floor(rand() * others.length)]
+        order.push(next)
+        left.delete(next)
       }
       order.forEach((t, i) => p.set(t, 1e9 - i))
     }

@@ -33,7 +33,8 @@ export function provenStatus(
   // of every other division
   const threats = others.filter((o) => best(o) >= wins[m]).length
   const otherWinners = divisions.filter((d) => d !== mine).length
-  if (winsDivision || threats + otherWinners < spots) return "clinched"
+  // A division title only guarantees a spot when every division winner gets one
+  if ((winsDivision && divisions.length <= spots) || threats + otherWinners < spots) return "clinched"
   // Teams already out of reach of m's best record are seeded ahead of m whenever m doesn't win its
   // division
   if (!canWinDivision && others.filter((o) => wins[o] > best(m)).length >= spots) return "eliminated"
