@@ -11,6 +11,7 @@ import { Section } from "../_components/ui"
 import { Matchups, RoadAhead, type MatchupOdds } from "./looking-ahead"
 import { PathTo } from "./path-to"
 import { DivisionOddsByWeek, PlayoffOddsByWeek, PlayoffRace } from "./playoff-race"
+import { ScenarioStandings } from "./scenario-standings"
 import { useScenario, type Scenario } from "./use-scenario"
 import { ScenarioBar, WhatIfPicker } from "./what-if-picker"
 
@@ -117,6 +118,9 @@ export function OutlookView({
         </Section>
         {view && (
           <Section title="Playoff race">
+            {active && scenario && (
+              <ScenarioStandings standings={scenario.standings} spots={scenario.spots} divisionSeeds={scenario.divisionSeeds} highlighted={highlighted} />
+            )}
             <PlayoffRace race={view} baseline={baseline} highlighted={highlighted} onOpen={paths ? openPath : undefined} />
           </Section>
         )}

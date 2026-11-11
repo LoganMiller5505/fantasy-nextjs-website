@@ -13,18 +13,23 @@ import { Detail, HIGHLIGHT_ROW, HighlightLines, Legend, ManagerLink, PICK_HINT, 
 
 type Divisions = ReturnType<typeof divisionsOf>
 
-// One week of the form strip. Weeks still to play aren't drawn at all.
-function Chip({ result, label }: { result: Exclude<WeekResult, null>; label: string }) {
-  const said = result === "bye" ? "no game" : result === "W" ? "win" : "loss"
+// One week of the form strip. Weeks still to play aren't drawn at all, except in a what-if's
+// standings: there an open game is a dotted square, and a picked result is outlined, not filled.
+export function Chip({ result, label, picked = false }: { result: WeekResult; label: string; picked?: boolean }) {
+  const said = result == null ? "still to play" : result === "bye" ? "no game" : `${result === "W" ? "win" : "loss"}${picked ? " (picked)" : ""}`
   return (
     <span
       title={`${label}: ${said}`}
       aria-label={`${label}: ${said}`}
       role="img"
       className={cn(
-        "inline-flex size-5 items-center justify-center rounded-[4px] text-[10px] font-semibold",
-        result === "W" && "bg-foreground text-background",
-        result === "L" && "bg-muted text-muted-foreground",
+        "inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] text-[10px] font-semibold",
+        result == null && "border-muted-foreground/40 border border-dotted",
+        picked && "border-dashed border",
+        picked && result === "W" && "border-foreground text-foreground",
+        picked && result === "L" && "border-muted-foreground/60 text-muted-foreground",
+        !picked && result === "W" && "bg-foreground text-background",
+        !picked && result === "L" && "bg-muted text-muted-foreground",
         result === "bye" && "text-muted-foreground/60"
       )}
     >

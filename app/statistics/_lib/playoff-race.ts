@@ -41,7 +41,7 @@ const sd = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)))
 
 // A game still to play, and a side of one already played: all the race needs of them
 export type Game = { manager: string; opponent: string; week_no: number }
-export type Played = Pick<Side, "manager" | "win" | "pf" | "double">
+export type Played = Pick<Side, "manager" | "win" | "pf" | "double" | "week_no" | "short">
 
 // The season in progress and its playoff format: who's in it, the divisions, the playoff spots and
 // first-round byes. Everything after this works from these alone, not from the league itself.
@@ -396,6 +396,7 @@ export function raceFromInput(
   // Clinched and eliminated on wins alone (status.ts), with the picked results in: neither badge
   // can turn out wrong
   const decided = new Map(wins)
+  const decidedLosses = new Map(losses)
   const left = new Map(managers.map((m) => [m, 0]))
   remaining.forEach((g, i) => {
     const pick = picks[i]
@@ -403,8 +404,9 @@ export function raceFromInput(
       left.set(g.manager, left.get(g.manager)! + 1)
       left.set(g.opponent, left.get(g.opponent)! + 1)
     } else {
-      const winner = pick ? g.manager : g.opponent
+      const [winner, loser] = pick ? [g.manager, g.opponent] : [g.opponent, g.manager]
       decided.set(winner, decided.get(winner)! + 1)
+      decidedLosses.set(loser, decidedLosses.get(loser)! + 1)
     }
   })
   const setup = {
@@ -480,6 +482,34 @@ export function raceFromInput(
     },
   })
 
+  // The table as it stands with the picked results in and nothing else played: picks add a win or
+  // loss but no points, so ties on wins fall back on points for so far. `weeks`: every regular-
+  // season week in order, null for a game still open.
+  type WeekResult = { week: string; result: "W" | "L" | "bye" | null; picked: boolean }
+  const weekNos = [...new Set([...season.map((s) => s.week_no), ...remaining.map((g) => g.week_no)])].sort((a, b) => a - b)
+  const label = new Map<number, string>(remaining.map((g) => [g.week_no, `W${g.week_no}`]))
+  for (const s of season) label.set(s.week_no, s.short)
+  const weeksOf = (m: string): WeekResult[] =>
+    weekNos.map((n) => {
+      const week = label.get(n)!
+      const side = season.find((s) => s.week_no === n && s.manager === m)
+      if (side) return { week, result: side.win ? "W" : "L", picked: false }
+      const i = remaining.findIndex((g) => g.week_no === n && (g.manager === m || g.opponent === m))
+      if (i < 0) return { week, result: "bye", picked: false }
+      const pick = picks[i]
+      if (pick == null) return { week, result: null, picked: false }
+      return { week, result: (pick ? remaining[i].manager : remaining[i].opponent) === m ? "W" : "L", picked: true }
+    })
+  const standings = seedOrder(decided, pf).map((m) => ({
+    manager: m,
+    won: decided.get(m)!,
+    lost: decidedLosses.get(m)!,
+    pf: round(pf.get(m)!, 1),
+    division: division.get(m) ?? null,
+    tied: managers.some((o) => o !== m && decided.get(o) === decided.get(m)),
+    weeks: weeksOf(m),
+  }))
+
   const weeksLeft = new Set(remaining.map((g) => g.week_no)).size
   return {
     year,
@@ -488,6 +518,7 @@ export function raceFromInput(
     runs,
     weeksLeft,
     rows,
+    standings,
     divisions: divisions.map((d) => ({ division: d, managers: managers.filter((m) => division.get(m) === d) })),
     paths,
   }
