@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import type { Ranker } from "@/lib/league"
 import type { RankSource, powerRankings } from "../_lib/stats"
 import { HighlightPicker, useHighlight } from "../_components/highlight"
 import { Segmented, Toolbar } from "../_components/scope"
@@ -14,6 +15,12 @@ const sources: RankSource[] = ["Consensus", "Logan", "Andy", "ESPN"]
 export function PowerRankings({ data }: { data: Rankings }) {
   const [source, setSource] = React.useState<RankSource>("Consensus")
   const [picked, setPicked] = useHighlight(data.managers)
+  // Each pair of rankers, and the games one called right and the other didn't
+  const pairs = data.rankers.flatMap((a, i) => data.rankers.slice(i + 1).map((b) => `${a} vs ${b}`))
+  const [pair, setPair] = React.useState(pairs[0])
+  const [first, second] = pair.split(" vs ") as [Ranker, Ranker]
+  const splits = (right: Ranker, wrong: Ranker) =>
+    data.calls.filter((g) => g.picks[right].right && !g.picks[wrong].right)
   const maxSpread = Math.max(...data.latestTable.map((r) => r.spread))
   const biasLimit = Math.max(...data.bias.flatMap((r) => data.rankers.map((k) => Math.abs(r[k]))))
   const signed = (x: number) => (x > 0 ? `+${x}` : String(x))
@@ -115,6 +122,48 @@ export function PowerRankings({ data }: { data: Rankings }) {
               })),
             }))}
           />
+        </Panel>
+        <Panel
+          title="Split calls"
+          description="Games where one ranker called it right and the other didn't."
+          method="A call is the manager a ranker had higher on the ballot before the game. The rank columns show where that ranker had the winner and the loser."
+          controls={<Segmented label="Rankers" value={pair} options={pairs} onChange={setPair} size="sm" />}
+        >
+          <div className="grid gap-6">
+            {([[first, second], [second, first]] as const).map(([right, wrong]) => {
+              const games = splits(right, wrong)
+              return (
+                <div key={right} className="grid gap-2">
+                  <h4 className="text-sm font-medium">
+                    {right} right, {wrong} wrong{" "}
+                    <span className="text-muted-foreground">
+                      ({games.length} game{games.length === 1 ? "" : "s"})
+                    </span>
+                  </h4>
+                  {games.length ? (
+                    <SimpleTable
+                      head={["Week", "Winner", "Loser", "Score", `${right}: winner v loser`, `${wrong}: winner v loser`]}
+                      align={["left", "left", "left", "right", "right", "right"]}
+                      highlight={(i) => games[i].winner === picked || games[i].loser === picked}
+                      rows={games.map((g) => [
+                        g.week,
+                        g.winner,
+                        g.loser,
+                        g.score,
+                        ...[right, wrong].map((r) => (
+                          <span key={r} title={`${r}'s ${g.ballot} ballot: ${g.winner} #${g.picks[r].winnerRank}, ${g.loser} #${g.picks[r].loserRank}`}>
+                            {g.winner} (#{g.picks[r].winnerRank}) v {g.loser} (#{g.picks[r].loserRank})
+                          </span>
+                        )),
+                      ])}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No games where {right} was right and {wrong} was wrong.</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </Panel>
       </Section>
     </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { cn } from "cn"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { Scope } from "../_lib/stats"
 
@@ -73,9 +74,15 @@ export function ScopeToggle<T extends Scope>({
 // The bar at the top of a page for the controls that apply to every panel on it (the season and
 // the highlighted manager). It sticks under the site header so they stay in reach on long pages.
 // On phones it stays one row: the season choice keeps its size and the manager picker narrows.
-export function Toolbar({ children }: { children: React.ReactNode }) {
+// `wrap`: let the controls wrap on phones too, for a full-width row under them (Outlook's what-if bar)
+export function Toolbar({ children, wrap = false }: { children: React.ReactNode; wrap?: boolean }) {
   return (
-    <div className="bg-background/90 sticky top-14 z-40 -mx-4 -mt-2 flex items-center gap-x-3 gap-y-2 border-b px-4 py-2 backdrop-blur sm:flex-wrap sm:gap-x-4 [&>[data-slot=toggle-group]]:shrink-0">
+    <div
+      className={cn(
+        "bg-background/90 sticky top-14 z-40 -mx-4 -mt-2 flex items-center gap-x-3 gap-y-2 border-b px-4 py-2 backdrop-blur sm:flex-wrap sm:gap-x-4 [&>[data-slot=toggle-group]]:shrink-0",
+        wrap && "flex-wrap"
+      )}
+    >
       {children}
     </div>
   )

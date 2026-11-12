@@ -3,7 +3,7 @@
 import { emphasis } from "../_components/highlight"
 import { cn } from "cn"
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from "recharts"
-import { Flame } from "lucide-react"
+import { Check, Flame } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
@@ -26,8 +26,21 @@ const stakes = (odds: Record<string, MatchupOdds> | undefined, a: string, b: str
   return { total: swing(a) + swing(b), a: swing(a), b: swing(b) }
 }
 
-// One side of a game: form, then playoff odds now, with a win and with a loss
-function Side({ side, odds, end }: { side: Ahead["matchups"][number]["home"]; odds?: MatchupOdds; end?: boolean }) {
+// One side of a game: form, then playoff odds now, with a win and with a loss. In a what-if,
+// `odds` are the what-if's and `base` the odds now; `result` is this side's picked result.
+function Side({
+  side,
+  odds,
+  base,
+  result,
+  end,
+}: {
+  side: Ahead["matchups"][number]["home"]
+  odds?: MatchupOdds
+  base?: MatchupOdds
+  result?: "won" | "lost" | null
+  end?: boolean
+}) {
   return (
     <div className={cn("grid gap-0.5 tabular-nums", end && "text-right")}>
       <span>
@@ -35,8 +48,16 @@ function Side({ side, odds, end }: { side: Ahead["matchups"][number]["home"]; od
       </span>
       {odds && (
         <>
-          <span>{oddsText(odds.playoffs)} playoffs now</span>
-          {odds.next && (
+          {base ? (
+            <span>
+              {oddsText(odds.playoffs)} playoffs <span className="text-xs">(now {oddsText(base.playoffs)})</span>
+            </span>
+          ) : (
+            <span>{oddsText(odds.playoffs)} playoffs now</span>
+          )}
+          {result ? (
+            <span className="text-foreground text-xs font-medium">{result === "won" ? "Picked to win" : "Picked to lose"}</span>
+          ) : odds.next && (
             <dl className={cn("grid grid-cols-[auto_auto] gap-x-2 text-xs", end ? "justify-end" : "justify-start")}>
               <dt>With a win</dt>
               <dd className="text-foreground font-medium">{oddsText(odds.next.win)}</dd>
@@ -50,9 +71,46 @@ function Side({ side, odds, end }: { side: Ahead["matchups"][number]["home"]; od
   )
 }
 
+// A side's name on a card. With `onPick` it's also a what-if toggle: tap to pick them to win, tap
+// again to leave the game open.
+function Name({ manager, picked, onPick }: { manager: string; picked: boolean; onPick?: () => void }) {
+  if (!onPick) return <span>{manager}</span>
+  return (
+    <button
+      type="button"
+      aria-pressed={picked}
+      title={picked ? `Leave ${manager}'s game open` : `What if ${manager} wins?`}
+      onClick={onPick}
+      className={cn(
+        "hover:bg-muted focus-visible:ring-ring -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 focus-visible:ring-2 focus-visible:outline-none",
+        picked && "bg-[color-mix(in_oklab,var(--highlight)_14%,var(--card))] shadow-[inset_0_0_0_1px_var(--highlight)]"
+      )}
+    >
+      {picked && <Check className="size-3.5 text-(--highlight)" aria-hidden />}
+      {manager}
+    </button>
+  )
+}
+
+type MatchupPick = "home" | "away" | null
+
 // `odds`: each manager's playoff odds now and after next week's result, while there's a race to
-// run. The game that moves its two managers' odds the most leads as the game of the week.
-export function Matchups({ data, highlighted, odds }: { data: Ahead; highlighted: string | null; odds?: Record<string, MatchupOdds> }) {
+// run; in a what-if, the what-if's, with `baseline` the odds now. `pick`: the what-if pick for a
+// game and a way to change it, so a card's names double as what-if toggles. The game that moves
+// its two managers' odds the most leads as the game of the week.
+export function Matchups({
+  data,
+  highlighted,
+  odds,
+  baseline,
+  pick,
+}: {
+  data: Ahead
+  highlighted: string | null
+  odds?: Record<string, MatchupOdds>
+  baseline?: Record<string, MatchupOdds>
+  pick?: { of: (home: string, away: string) => MatchupPick; set: (home: string, away: string, pick: MatchupPick) => void }
+}) {
   // Most riding on it first; without odds, the schedule's order
   const ordered = data.matchups
     .map((m) => ({ ...m, stakes: stakes(odds, m.home.manager, m.away.manager) }))
@@ -62,7 +120,7 @@ export function Matchups({ data, highlighted, odds }: { data: Ahead; highlighted
   return (
     <Panel
       title={`${data.year} ${data.label}`}
-      description={`Next week's games, with each side's record and points per game this season${odds ? ", and their playoff odds now, with a win and with a loss. Games are ordered by how much is riding on them, starting with the game of the week" : ""}.`}
+      description={`Next week's games, with each side's record and points per game this season${odds ? ", and their playoff odds now, with a win and with a loss. Games are ordered by how much is riding on them, starting with the game of the week" : ""}.${pick ? " Tap a name to see what happens if they win." : ""}`}
       method={
         odds
           ? "With a win and with a loss come from the same simulations as the playoff odds below, split by how that manager's game next week went. A game's stakes are how far it moves both managers' odds (the gap between their win and loss odds, added); the game of the week has the biggest."
@@ -74,6 +132,9 @@ export function Matchups({ data, highlighted, odds }: { data: Ahead; highlighted
       <div className="flex flex-wrap justify-center gap-3">
         {ordered.map((m) => {
           const isFeatured = m === featured
+          const picked = pick?.of(m.home.manager, m.away.manager) ?? null
+          const toggle = (side: "home" | "away") =>
+            pick ? () => pick.set(m.home.manager, m.away.manager, picked === side ? null : side) : undefined
           return (
             <Card
               key={m.home.manager}
@@ -94,13 +155,24 @@ export function Matchups({ data, highlighted, odds }: { data: Ahead; highlighted
                   </Badge>
                 )}
                 <CardTitle className={cn("flex items-baseline justify-between gap-2", isFeatured && "text-lg")}>
-                  <span>{m.home.manager}</span>
+                  <Name manager={m.home.manager} picked={picked === "home"} onPick={toggle("home")} />
                   <span className="text-muted-foreground text-xs font-normal">vs</span>
-                  <span>{m.away.manager}</span>
+                  <Name manager={m.away.manager} picked={picked === "away"} onPick={toggle("away")} />
                 </CardTitle>
                 <CardDescription className="flex justify-between gap-2">
-                  <Side side={m.home} odds={odds?.[m.home.manager]} />
-                  <Side side={m.away} odds={odds?.[m.away.manager]} end />
+                  <Side
+                    side={m.home}
+                    odds={odds?.[m.home.manager]}
+                    base={baseline?.[m.home.manager]}
+                    result={picked && (picked === "home" ? "won" : "lost")}
+                  />
+                  <Side
+                    side={m.away}
+                    odds={odds?.[m.away.manager]}
+                    base={baseline?.[m.away.manager]}
+                    result={picked && (picked === "away" ? "won" : "lost")}
+                    end
+                  />
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-muted-foreground grid gap-1 text-xs">

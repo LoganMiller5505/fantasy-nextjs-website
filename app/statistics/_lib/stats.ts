@@ -818,16 +818,34 @@ export function powerRankings(league: League, sides: Side[]) {
     })
     .sort((a, b) => a.consensus - b.consensus)
 
+  // Every game the ballots predicted (the week after each ballot), with each ranker's call: the
+  // manager they ranked higher, and whether that manager won
+  const calls = weeks.flatMap((w) =>
+    sides
+      .filter((s) => s.year === year && s.week_no === w + 1 && s.manager < s.opponent)
+      .map((s) => {
+        const [winner, loser] = s.win ? [s.manager, s.opponent] : [s.opponent, s.manager]
+        const [wPts, lPts] = s.win ? [s.pf, s.pa] : [s.pa, s.pf]
+        return {
+          week: s.short,
+          ballot: `W${w}`,
+          winner,
+          loser,
+          score: `${wPts.toFixed(2)}–${lPts.toFixed(2)}`,
+          picks: Object.fromEntries(
+            rankers.map((r) => {
+              const winnerRank = rankOf(w, r, winner)
+              const loserRank = rankOf(w, r, loser)
+              return [r, { winnerRank, loserRank, right: winnerRank < loserRank }]
+            })
+          ) as Record<Ranker, { winnerRank: number; loserRank: number; right: boolean }>,
+        }
+      })
+  )
+
   const accuracy = rankers.map((ranker) => {
-    let right = 0
-    let total = 0
-    for (const w of weeks) {
-      for (const s of sides.filter((s) => s.year === year && s.week_no === w + 1 && s.manager < s.opponent)) {
-        total++
-        const favoriteWon = rankOf(w, ranker, s.manager) < rankOf(w, ranker, s.opponent) === s.win
-        if (favoriteWon) right++
-      }
-    }
+    const right = calls.filter((g) => g.picks[ranker].right).length
+    const total = calls.length
     return { ranker, pct: round((right / (total || 1)) * 100, 1), right, total }
   })
 
@@ -865,6 +883,7 @@ export function powerRankings(league: League, sides: Side[]) {
     series,
     latestTable,
     accuracy,
+    calls,
     bias,
     risers,
     fallers,
