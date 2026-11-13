@@ -238,6 +238,7 @@ export function SimpleTable({
   align,
   highlight,
   divider,
+  groups,
 }: {
   head: string[]
   rows: React.ReactNode[][]
@@ -245,6 +246,8 @@ export function SimpleTable({
   highlight?: (index: number) => boolean
   // A full-width labelled line above row `before`, such as a playoff cut-off
   divider?: { before: number; label: string }
+  // A heading row above row `before`, splitting the table into groups such as divisions
+  groups?: { before: number; label: string }[]
 }) {
   return (
     <div className="overflow-hidden rounded-md border [&_[data-slot=table-container]]:scroll-shadow">
@@ -261,6 +264,15 @@ export function SimpleTable({
         <TableBody>
           {rows.map((cells, r) => (
             <React.Fragment key={r}>
+              {groups
+                ?.filter((g) => g.before === r)
+                .map((g) => (
+                  <TableRow key={g.label} className="hover:bg-transparent">
+                    <TableHead colSpan={head.length} scope="colgroup" className="bg-muted/50 text-foreground h-8 font-semibold">
+                      {g.label}
+                    </TableHead>
+                  </TableRow>
+                ))}
               {divider?.before === r && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={head.length} className="text-muted-foreground border-y border-dashed py-1 text-center text-xs">
