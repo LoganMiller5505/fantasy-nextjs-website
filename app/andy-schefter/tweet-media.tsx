@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import type { TweetImage } from "@/lib/andy-schefter"
 
+// Images come from the database already sized as WebP, through a password-gated route Next's image
+// optimizer can't fetch, so they skip it (unoptimized).
 // Twitter's grids: one image keeps its shape (cropped if very tall); 2–4 share a 16:9 box.
 // With three, the first fills the left column and the other two stack on the right.
 const gridClass = {
@@ -45,6 +47,7 @@ export function TweetMedia({ images }: { images: TweetImage[] }) {
           >
             <Image
               src={image.src}
+              unoptimized
               alt={image.alt}
               fill
               sizes={single ? "(max-width: 640px) 100vw, 520px" : "(max-width: 640px) 50vw, 260px"}
@@ -100,6 +103,7 @@ function PreviewImage({ image }: { image: TweetImage }) {
       {!loaded && <Spinner className="absolute inset-0 m-auto size-8 text-muted-foreground" />}
       <Image
         src={image.src}
+        unoptimized
         alt={image.alt}
         fill
         sizes="95vw"
