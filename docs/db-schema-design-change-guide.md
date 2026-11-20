@@ -20,6 +20,12 @@ normalized `league` schema, with as little change as possible.
 | `db/00_schema.sql` | Once | Creates the `league` schema and its tables. |
 | `db/01_seed.sql` | Once per season, when divisions are set | Divisions: the one fact the sheet doesn't hold. |
 | `db/02_populate.sql` | Once, and again whenever the sync logic changes | Installs the sync as `league.sync()` and runs it. The sheet loader then calls it after every upload. |
+| `db/03_content.sql` | Once | Creates the separate `content` schema for things written on the site itself (Andy Schefter tweets and their images), and moves the old text-only tweets in. |
+
+**`content` is not `league`.** `league` holds facts copied from the sheet and is rebuilt by the sync;
+`content` holds what people write on the site, which exists nowhere else. The sync never touches it,
+and it's the place for future site-written content (power ranking blurbs, recaps). Its tweets are
+posted from `/andy-schefter` by anyone with `TWEET_PASSWORD`.
 
 **Status.** All three files have been run end to end on synthetic data in a local Postgres 16,
 including the failure cases the checks are meant to catch, with the loader's role calling the sync

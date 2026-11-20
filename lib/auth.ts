@@ -11,3 +11,12 @@ export async function expectedToken() {
   const password = process.env.SITE_PASSWORD
   return password ? sha256(password) : null
 }
+
+export const POSTER_COOKIE = "tweet-auth"
+
+// Cookie value for someone allowed to post Andy Schefter tweets. Prefixed so it never matches the
+// site cookie, even if both passwords are the same. Null when no poster password is configured.
+export async function expectedPosterToken() {
+  const password = process.env.TWEET_PASSWORD
+  return password ? sha256(`poster:${password}`) : null
+}
