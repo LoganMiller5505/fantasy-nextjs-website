@@ -1,6 +1,7 @@
 -- Power ranking write-ups and the slander gallery, written on the site by editors (EDITOR_PASSWORD).
--- Runs once, after 03_content.sql. The gallery's existing media is moved in afterwards by
--- scripts/import-gallery.mts, since it's binary.
+-- Runs once, after 03_content.sql. The gallery's original media (74 items that used to be hard-coded
+-- in lib/gallery.ts and public/slander-gallery) was moved in afterwards by a one-off script,
+-- scripts/import-gallery.mts, run on 2026-11-20 and since deleted (see commit 46e9886).
 
 -- One editor's write-up of one team in one week's power rankings. Ranks and records aren't stored:
 -- they're worked out from the sheet's ballots (league.power_ranking) and games (league.game).

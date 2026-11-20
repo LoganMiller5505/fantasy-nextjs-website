@@ -21,7 +21,7 @@ normalized `league` schema, with as little change as possible.
 | `db/01_seed.sql` | Once per season, when divisions are set | Divisions: the one fact the sheet doesn't hold. |
 | `db/02_populate.sql` | Once, and again whenever the sync logic changes | Installs the sync as `league.sync()` and runs it. The sheet loader then calls it after every upload. |
 | `db/03_content.sql` | Once | Creates the separate `content` schema for things written on the site itself (Andy Schefter tweets and their images), and moves the old text-only tweets in. |
-| `db/04_rankings_gallery.sql` | Once | Adds power ranking write-ups and the slander gallery to `content`, and moves the old hard-coded write-ups in. The gallery's existing media is moved in afterwards by `scripts/import-gallery.mts`. |
+| `db/04_rankings_gallery.sql` | Once | Adds power ranking write-ups and the slander gallery to `content`, and moves the old hard-coded write-ups in. The gallery's original 74 items were moved in by a one-off script (`scripts/import-gallery.mts`, in commit 46e9886, since deleted); a fresh database gets an empty gallery. |
 
 **`content` is not `league`.** `league` holds facts copied from the sheet and is rebuilt by the sync;
 `content` holds what people write on the site, which exists nowhere else. The sync never touches it,
