@@ -7,7 +7,7 @@ import { POSTER_COOKIE, expectedPosterToken } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { isPoster } from "@/lib/poster"
 import { MAX_UPLOAD_BYTES, normalizeImage } from "@/lib/tweet-images"
-import { fillEngagement, nowCentral, type Counts } from "@/lib/tweets"
+import { fillEngagement, todayCentral, type Counts } from "@/lib/tweets"
 
 const PAGE = "/andy-schefter"
 const MAX_TEXT = 1000
@@ -38,20 +38,9 @@ export type PostState = { error?: string; ok?: boolean }
 export async function postTweet(_prev: PostState, formData: FormData): Promise<PostState> {
   if (!(await isPoster())) return { error: "You're not logged in to post." }
 
-  const text = String(formData.get("text") ?? "").trim()
-  if (text.length > MAX_TEXT) return { error: `Keep it to ${MAX_TEXT} characters.` }
-
-  const date = String(formData.get("date") ?? "").trim() || nowCentral()
-  if (!isValidDate(date)) return { error: "That date isn't valid." }
-
-  const given: Counts = {}
-  for (const key of ["replies", "retweets", "likes", "views"] as const) {
-    const raw = String(formData.get(key) ?? "").trim()
-    if (!raw) continue
-    if (!/^\d{1,10}$/.test(raw) || Number(raw) > 2 ** 31 - 1) return { error: `${key[0].toUpperCase() + key.slice(1)} must be a whole number.` }
-    given[key] = Number(raw)
-  }
-  const counts = fillEngagement(given)
+  const fields = readFields(formData)
+  if ("error" in fields) return fields
+  const { text, date, counts } = fields
 
   const files = formData.getAll("images").filter((f): f is File => f instanceof File && f.size > 0)
   const alts = formData.getAll("alt").map((a) => String(a).trim().slice(0, MAX_TEXT))
@@ -68,13 +57,37 @@ export async function postTweet(_prev: PostState, formData: FormData): Promise<P
 
   const tweetId = crypto.randomUUID()
   await sql.transaction([
-    sql`insert into content.tweet (tweet_id, posted_at, text, replies, retweets, likes, views)
+    sql`insert into content.tweet (tweet_id, posted_on, text, replies, retweets, likes, views)
         values (${tweetId}, ${date}, ${text}, ${counts.replies}, ${counts.retweets}, ${counts.likes}, ${counts.views})`,
     ...images.map((image, position) => sql`
       insert into content.tweet_image (tweet_id, position, alt, width, height, mime, bytes)
       values (${tweetId}, ${position}, ${alts[position] || altFromName(files[position].name)},
               ${image.width}, ${image.height}, ${image.mime}, decode(${image.bytes.toString("base64")}, 'base64'))`),
   ])
+
+  revalidatePath(PAGE)
+  return { ok: true }
+}
+
+// Edits the text, date and counts. Images stay as they were posted.
+export async function updateTweet(_prev: PostState, formData: FormData): Promise<PostState> {
+  if (!(await isPoster())) return { error: "You're not logged in to post." }
+
+  const id = String(formData.get("id") ?? "")
+  if (!UUID.test(id)) return { error: "That tweet doesn't exist." }
+  const fields = readFields(formData)
+  if ("error" in fields) return fields
+  const { text, date, counts } = fields
+
+  const rows = await sql`
+    update content.tweet
+    set text = ${text}, posted_on = ${date},
+        replies = ${counts.replies}, retweets = ${counts.retweets}, likes = ${counts.likes}, views = ${counts.views}
+    where tweet_id = ${id} and deleted_at is null
+      and (${text} <> '' or exists (select from content.tweet_image i where i.tweet_id = ${id}))
+    returning tweet_id
+  `
+  if (rows.length === 0) return { error: text ? "That tweet doesn't exist." : "Write something." }
 
   revalidatePath(PAGE)
   return { ok: true }
@@ -99,10 +112,29 @@ export async function restoreTweet(id: string) {
   revalidatePath(PAGE)
 }
 
-// "YYYY-MM-DDTHH:MM" that's a real calendar date (no Feb 30)
+// The fields shared by posting and editing. A blank date means today; blank counts are made up to
+// match the others (fillEngagement).
+function readFields(formData: FormData) {
+  const text = String(formData.get("text") ?? "").trim()
+  if (text.length > MAX_TEXT) return { error: `Keep it to ${MAX_TEXT} characters.` }
+
+  const date = String(formData.get("date") ?? "").trim() || todayCentral()
+  if (!isValidDate(date)) return { error: "That date isn't valid." }
+
+  const given: Counts = {}
+  for (const key of ["replies", "retweets", "likes", "views"] as const) {
+    const raw = String(formData.get(key) ?? "").trim()
+    if (!raw) continue
+    if (!/^\d{1,10}$/.test(raw) || Number(raw) > 2 ** 31 - 1) return { error: `${key[0].toUpperCase() + key.slice(1)} must be a whole number.` }
+    given[key] = Number(raw)
+  }
+  return { text, date, counts: fillEngagement(given) }
+}
+
+// "YYYY-MM-DD" that's a real calendar date (no Feb 30)
 function isValidDate(date: string) {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(date)) return false
-  const d = new Date(`${date}Z`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
+  const d = new Date(`${date}T00:00Z`)
   return !isNaN(d.getTime()) && d.toISOString().startsWith(date)
 }
 

@@ -4,16 +4,17 @@ import { cn } from "cn";
 import type { PROFILE, Tweet } from "@/lib/andy-schefter";
 import { DeleteTweetButton } from "./delete-tweet-button";
 import { VerifiedBadge } from "./profile-header";
+import { EditTweetButton } from "./tweet-editor";
 import { TweetMedia } from "./tweet-media";
 
 const compact = new Intl.NumberFormat("en-US", { notation: "compact" });
 
-// Dates are written without a timezone, so format in UTC to show them exactly as written
+// Dates have no time or timezone, so format in UTC to show them exactly as written
 const sameYearFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const otherYearFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" });
 
 function formatDate(date: string) {
-    const d = new Date(`${date}Z`);
+    const d = new Date(`${date}T00:00Z`);
     return (d.getUTCFullYear() === new Date().getUTCFullYear() ? sameYearFormat : otherYearFormat).format(d);
 }
 
@@ -24,7 +25,7 @@ function renderText(text: string) {
     );
 }
 
-export function TweetCard({ tweet, profile, canDelete }: { tweet: Tweet; profile: typeof PROFILE; canDelete?: boolean }) {
+export function TweetCard({ tweet, profile, canEdit }: { tweet: Tweet; profile: typeof PROFILE; canEdit?: boolean }) {
     return (
         <article className="flex gap-3 border-b px-4 py-3">
             <Image src={profile.avatar} alt="" width={40} height={40} className="size-10 shrink-0 rounded-full object-cover" />
@@ -36,7 +37,12 @@ export function TweetCard({ tweet, profile, canDelete }: { tweet: Tweet; profile
                     <span className="truncate text-muted-foreground">@{profile.handle}</span>
                     <span className="text-muted-foreground">·</span>
                     <time dateTime={tweet.date} className="shrink-0 text-muted-foreground">{formatDate(tweet.date)}</time>
-                    {canDelete && <DeleteTweetButton id={tweet.id} />}
+                    {canEdit && (
+                        <span className="ml-auto flex shrink-0 gap-0.5">
+                            <EditTweetButton />
+                            <DeleteTweetButton id={tweet.id} />
+                        </span>
+                    )}
                 </p>
 
                 {tweet.text && <p className="whitespace-pre-wrap break-words text-[15px]">{renderText(tweet.text)}</p>}

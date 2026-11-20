@@ -8,7 +8,7 @@ const MEDIA = "/andy-schefter/media/"
 export async function getTweets(): Promise<Tweet[]> {
   return (await sql`
     select t.tweet_id as id,
-           to_char(t.posted_at, 'YYYY-MM-DD"T"HH24:MI') as date,
+           to_char(t.posted_on, 'YYYY-MM-DD') as date,
            t.text, t.replies, t.retweets, t.likes, t.views,
            coalesce(
              json_agg(json_build_object('src', ${MEDIA} || i.image_id, 'alt', i.alt, 'width', i.width, 'height', i.height)
@@ -19,7 +19,7 @@ export async function getTweets(): Promise<Tweet[]> {
     left join content.tweet_image i using (tweet_id)
     where t.deleted_at is null
     group by t.tweet_id
-    order by t.posted_at desc
+    order by t.posted_on desc, t.created_at desc
   `) as Tweet[]
 }
 
@@ -57,13 +57,10 @@ export function fillEngagement(given: Counts): Required<Counts> {
   return { replies: fill("replies"), retweets: fill("retweets"), likes: fill("likes"), views: fill("views") }
 }
 
-const central = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/Chicago",
-  year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-})
+// en-CA formats dates as YYYY-MM-DD
+const central = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" })
 
-// The current minute on league time (Auburn), as "YYYY-MM-DDTHH:MM"
-export function nowCentral() {
-  const p = Object.fromEntries(central.formatToParts(new Date()).map((part) => [part.type, part.value]))
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
+// Today on league time (Auburn), as "YYYY-MM-DD"
+export function todayCentral() {
+  return central.format(new Date())
 }

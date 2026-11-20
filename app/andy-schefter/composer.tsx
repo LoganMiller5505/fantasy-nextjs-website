@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { postTweet, type PostState } from "./actions"
+import { TweetFields } from "./tweet-fields"
 
 const MAX_TEXT = 1000
 const MAX_IMAGES = 4
@@ -17,13 +18,6 @@ const MAX_BYTES = 3 * 1024 * 1024 // matches MAX_UPLOAD_BYTES on the server
 const MAX_EDGE = 2048             // the server shrinks again to 1600; this just keeps uploads small
 
 type Picked = { key: string; blob: Blob; name: string; url: string; alt: string }
-
-const COUNTS = [
-  { name: "replies", label: "Replies" },
-  { name: "retweets", label: "Reposts" },
-  { name: "likes", label: "Likes" },
-  { name: "views", label: "Views" },
-]
 
 export function Composer({ avatar }: { avatar: string }) {
   const formRef = useRef<HTMLFormElement>(null)
@@ -135,20 +129,9 @@ export function Composer({ avatar }: { avatar: string }) {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <p className="mt-2 text-xs text-muted-foreground">
-              Leave any blank: the date defaults to now (Central), and counts are made up to match the others.
+              Leave any blank: the date defaults to today, and counts are made up to match the others.
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <label className="col-span-2 flex flex-col gap-1 sm:col-span-1">
-                <span className="text-xs text-muted-foreground">Date</span>
-                <Input type="datetime-local" name="date" />
-              </label>
-              {COUNTS.map((c) => (
-                <label key={c.name} className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">{c.label}</span>
-                  <Input type="number" name={c.name} min={0} max={2 ** 31 - 1} step={1} placeholder="Random" inputMode="numeric" />
-                </label>
-              ))}
-            </div>
+            <div className="mt-2"><TweetFields /></div>
           </CollapsibleContent>
         </Collapsible>
 

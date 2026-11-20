@@ -21,7 +21,7 @@ export function DeleteTweetButton({ id }: { id: string }) {
           onDeleted(id)
         })
       }}
-      className="ml-auto shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+      className="shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
     >
       {pending ? <Spinner className="size-4" /> : <Trash2 className="size-4" aria-hidden />}
     </button>

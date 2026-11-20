@@ -4,7 +4,7 @@
 export type TweetImage = { src: string, alt: string, width: number, height: number }
 export type Tweet = {
   id: string
-  date: string // "YYYY-MM-DDTHH:MM", shown as written (no timezone shift)
+  date: string // "YYYY-MM-DD"
   text: string // newlines are kept; @mentions, #hashtags and links are tinted blue
   images?: TweetImage[] // up to 4
   replies: number

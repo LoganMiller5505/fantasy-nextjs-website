@@ -8,6 +8,7 @@ import { posterLogout } from "./actions";
 import { Composer } from "./composer";
 import { ProfileHeader } from "./profile-header";
 import { TweetCard } from "./tweet-card";
+import { TweetEditor } from "./tweet-editor";
 import { UndoDeleteProvider } from "./undo-delete";
 
 export const metadata: Metadata = { title: "Andy Schefter" };
@@ -25,7 +26,11 @@ export default async function AndySchefterPage() {
             {poster && <Composer avatar={PROFILE.avatar} />}
             {poster ? (
                 <UndoDeleteProvider>
-                    {tweets.map((tweet) => <TweetCard key={tweet.id} tweet={tweet} profile={PROFILE} canDelete />)}
+                    {tweets.map((tweet) => (
+                        <TweetEditor key={tweet.id} tweet={tweet} avatar={PROFILE.avatar}>
+                            <TweetCard tweet={tweet} profile={PROFILE} canEdit />
+                        </TweetEditor>
+                    ))}
                 </UndoDeleteProvider>
             ) : (
                 tweets.map((tweet) => <TweetCard key={tweet.id} tweet={tweet} profile={PROFILE} />)
