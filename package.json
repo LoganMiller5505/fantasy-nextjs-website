@@ -10,12 +10,14 @@
     "db:schema": "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/00_schema.sql",
     "db:seed": "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/01_seed.sql",
     "db:populate": "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/02_populate.sql",
-    "db:content": "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/03_content.sql"
+    "db:content": "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/03_content.sql",
+    "db:rankings-gallery": "psql \"${DB:?set DB to a direct Neon connection string}\" -X -v ON_ERROR_STOP=1 -1 -f db/04_rankings_gallery.sql"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "@neondatabase/serverless": "^1.1.0",
     "@tanstack/react-table": "^9.2.4",
+    "@vercel/blob": "^2.9.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "lucide-react": "^1.48.0",

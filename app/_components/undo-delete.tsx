@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState, useTransition } from "react"
 import { Spinner } from "@/components/ui/spinner"
-import { restoreTweet } from "./actions"
 
 const SHOW_MS = 10_000
 
@@ -11,10 +10,14 @@ const DeletedContext = createContext<(id: string) => void>(() => {})
 // Lets a delete button report what it deleted
 export const useOnDeleted = () => useContext(DeletedContext)
 
-// Wraps the feed for posters. After a delete, shows a Twitter-style "Tweet deleted · Undo" bar at the
+// Wraps a list for editors. After a delete, shows a Twitter-style "Tweet deleted · Undo" bar at the
 // bottom of the screen for a few seconds. Only the latest delete can be undone here; older ones stay
-// in the database for 7 days (content.tweet.deleted_at) and can be restored by clearing that.
-export function UndoDeleteProvider({ children }: { children: React.ReactNode }) {
+// in the database for 7 days (their deleted_at column) and can be restored by clearing that.
+export function UndoDeleteProvider({ restore, label, children }: {
+  restore: (id: string) => Promise<void>
+  label: string
+  children: React.ReactNode
+}) {
   const [deleted, setDeleted] = useState<{ id: string; at: number } | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -28,7 +31,7 @@ export function UndoDeleteProvider({ children }: { children: React.ReactNode }) 
     if (!deleted) return
     const { id } = deleted
     startTransition(async () => {
-      await restoreTweet(id)
+      await restore(id)
       setDeleted(null)
     })
   }
@@ -43,7 +46,7 @@ export function UndoDeleteProvider({ children }: { children: React.ReactNode }) 
             key={deleted.at}
             className="pointer-events-auto flex items-center gap-4 rounded-md bg-sky-500 py-2.5 pl-4 pr-2 text-[15px] text-white shadow-lg animate-in fade-in slide-in-from-bottom-2"
           >
-            <span>Tweet deleted</span>
+            <span>{label}</span>
             <button
               type="button"
               onClick={undo}

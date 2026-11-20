@@ -4,7 +4,7 @@ import { useTransition } from "react"
 import { Trash2 } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { deleteTweet } from "./actions"
-import { useOnDeleted } from "./undo-delete"
+import { useOnDeleted } from "@/app/_components/undo-delete"
 
 export function DeleteTweetButton({ id }: { id: string }) {
   const [pending, startTransition] = useTransition()

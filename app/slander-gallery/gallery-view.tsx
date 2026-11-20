@@ -1,26 +1,37 @@
 'use client'
 
-import { useState } from "react"
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react"
+import { useState, useTransition } from "react"
+import { ChevronLeftIcon, ChevronRightIcon, Pencil, Plus, Trash2, XIcon } from "lucide-react"
+import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import type { GalleryItem } from "@/lib/gallery"
+import { Spinner } from "@/components/ui/spinner"
+import { useOnDeleted } from "@/app/_components/undo-delete"
+import type { GalleryItem } from "@/lib/gallery-shared"
+import { deleteGalleryItem } from "./actions"
 import { FacetFilter } from "./facet-filter"
+import { GalleryItemForm } from "./gallery-item-form"
 import { HallOfFameToggle } from "./hall-of-fame-toggle"
 import { GalleryPreview, GalleryTile } from "./gallery-tile"
-import { keyOf } from "@/lib/gallery"
 
 const uniq = (xs: (string | undefined)[]) =>
   [...new Set(xs.filter((x): x is string => Boolean(x)))].sort()
 
-export function GalleryView({ items }: { items: GalleryItem[] }) {
+// `managers` is set for editors only, and turns on adding, editing and deleting
+export function GalleryView({ items, managers }: { items: GalleryItem[]; managers?: string[] }) {
   const [people, setPeople] = useState<string[]>([])
   const [types, setTypes] = useState<string[]>([])
   const [creators, setCreators] = useState<string[]>([])
   const [years, setYears] = useState<string[]>([])
   const [hallOfFame, setHallOfFame] = useState(false)
-  const [openIndex, setOpenIndex] = useState(0)
+  // Tracked by id so the open item stays put if an edit re-sorts the list. Kept after closing so the
+  // item stays rendered during the close animation.
+  const [openId, setOpenId] = useState<string | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [deleting, startDelete] = useTransition()
+  const onDeleted = useOnDeleted()
 
   const peopleOptions = uniq(items.flatMap((i) => i.people))
   const typeOptions = uniq(items.map((i) => i.type))
@@ -46,11 +57,24 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
   }
 
   // Step through the filtered list, wrapping around at either end
-  // (openIndex is kept after closing so the item stays rendered during the close animation)
+  const openIndex = visible.findIndex((i) => i.id === openId)
   const openItem = visible[openIndex]
-  const step = (delta: number) => setOpenIndex((i) => (i + delta + visible.length) % visible.length)
+  const step = (delta: number) => setOpenId(visible[(openIndex + delta + visible.length) % visible.length].id)
+
+  const open = (id: string) => {
+    setOpenId(id)
+    setEditing(false)
+    setPreviewOpen(true)
+  }
+  const remove = (id: string) =>
+    startDelete(async () => {
+      await deleteGalleryItem(id)
+      setPreviewOpen(false)
+      onDeleted(id)
+    })
 
   const onPreviewKeyDown = (e: React.KeyboardEvent) => {
+    if (editing) return
     if (e.target instanceof HTMLVideoElement) return // let a focused video use arrows to seek
     if (e.key === "ArrowLeft") step(-1)
     if (e.key === "ArrowRight") step(1)
@@ -64,6 +88,12 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
         <FacetFilter label="Creator" options={creatorOptions} selected={creators} onChange={setCreators} />
         <FacetFilter label="Year" options={yearOptions} selected={years} onChange={setYears} />
         <HallOfFameToggle pressed={hallOfFame} onPressedChange={setHallOfFame} />
+        {managers && (
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <Plus />
+            Add
+          </Button>
+        )}
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear
@@ -79,11 +109,11 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
         // Justified rows: each tile's flex-grow is its aspect ratio, so every row fills the width
         // at a shared height and nothing is cropped. The ::after spacer stops the last row stretching.
         <ul className="flex flex-wrap gap-2 [--row-h:140px] after:grow-[999] after:content-[''] sm:[--row-h:220px]">
-          {visible.map((item, index) => {
+          {visible.map((item) => {
             const ratio = item.width / item.height
             return (
-              <li key={keyOf(item)} style={{ flexGrow: ratio, flexBasis: `calc(var(--row-h) * ${ratio})` }}>
-                <GalleryTile item={item} onOpen={() => { setOpenIndex(index); setPreviewOpen(true) }} />
+              <li key={item.id} style={{ flexGrow: ratio, flexBasis: `calc(var(--row-h) * ${ratio})` }}>
+                <GalleryTile item={item} onOpen={() => open(item.id)} />
               </li>
             )
           })}
@@ -96,9 +126,31 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
       )}
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-h-dvh sm:max-w-[95vw] lg:max-w-6xl" onKeyDown={onPreviewKeyDown}>
-          {openItem && (
-            <GalleryPreview item={openItem}>
+        <DialogContent
+          // While editing, the form is the only row and scrolls inside the dialog on short screens
+          className={cn("max-h-dvh sm:max-w-[95vw] lg:max-w-6xl", editing && "max-h-[calc(100dvh-2rem)] grid-rows-[minmax(0,1fr)] sm:max-w-xl lg:max-w-xl")}
+          onKeyDown={onPreviewKeyDown}
+        >
+          {openItem && managers && editing ? (
+            <GalleryItemForm key={openItem.id} item={openItem} managers={managers} onDone={() => setEditing(false)} />
+          ) : openItem && (
+            <GalleryPreview
+              item={openItem}
+              actions={managers && (
+                <div className="flex shrink-0 gap-1">
+                  <Button variant="ghost" size="icon-sm" aria-label="Edit details" onClick={() => setEditing(true)}>
+                    <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost" size="icon-sm" aria-label="Delete" disabled={deleting}
+                    className="hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => remove(openItem.id)}
+                  >
+                    {deleting ? <Spinner /> : <Trash2 />}
+                  </Button>
+                </div>
+              )}
+            >
               {visible.length > 1 && (
                 <>
                   <Button variant="secondary" size="icon" aria-label="Previous"
@@ -117,6 +169,14 @@ export function GalleryView({ items }: { items: GalleryItem[] }) {
           )}
         </DialogContent>
       </Dialog>
+
+      {managers && (
+        <Dialog open={adding} onOpenChange={setAdding}>
+          <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[minmax(0,1fr)] sm:max-w-xl">
+            {adding && <GalleryItemForm managers={managers} onDone={() => setAdding(false)} />}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

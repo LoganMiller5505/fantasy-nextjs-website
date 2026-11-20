@@ -2,7 +2,7 @@
 // per-week stats, totals include every game (playoffs and consolation games too, as the sheet
 // does), and a bye is a missing row rather than a zero.
 
-import type { Division, League, Ranker, Week } from "@/lib/league"
+import type { Division, League, PowerRanking, Ranker, Week } from "@/lib/league"
 
 // One played game from one manager's side, with its week and both divisions attached.
 export type Side = {
@@ -757,6 +757,23 @@ export function divisionStrength(league: League, sides: Side[]) {
 
 export type RankSource = Ranker | "Consensus"
 
+// The published power ranking for one week: the average of Logan's, Andy's and ESPN's ranks, with
+// ties going to the average of Andy's and Logan's. That always settles it: equal on both means
+// equal ESPN ranks, which one ballot can't have. Sums compare the same as averages without
+// floating-point noise. `ballots` is one season's; returns manager → rank (1 is best).
+export function consensusRanks(ballots: PowerRanking[], managers: string[], week: number): Record<string, number> {
+  const rankers: Ranker[] = ["Logan", "Andy", "ESPN"]
+  const rankOf = (ranker: Ranker, m: string) =>
+    ballots.find((b) => b.week_no === week && b.ranker === ranker && b.manager === m)!.rank
+  const scored = managers.map((m) => ({
+    m,
+    all: sum(rankers.map((r) => rankOf(r, m))),
+    ours: rankOf("Andy", m) + rankOf("Logan", m),
+  }))
+  scored.sort((a, b) => a.all - b.all || a.ours - b.ours)
+  return Object.fromEntries(scored.map(({ m }, i) => [m, i + 1]))
+}
+
 export function powerRankings(league: League, sides: Side[]) {
   const year = latestYear(league)
   const ballots = league.powerRankings.filter((p) => p.year === year)
@@ -766,18 +783,8 @@ export function powerRankings(league: League, sides: Side[]) {
 
   const rankOf = (week: number, ranker: Ranker, m: string) =>
     ballots.find((b) => b.week_no === week && b.ranker === ranker && b.manager === m)!.rank
-  // Average of all three ranks; ties go to the average of Andy's and Logan's. That always settles
-  // it: equal on both means equal ESPN ranks, which one ballot can't have. Sums compare the same
-  // as averages without floating-point noise.
-  const consensus = (week: number) => {
-    const scored = managers.map((m) => ({
-      m,
-      all: sum(rankers.map((r) => rankOf(week, r, m))),
-      ours: rankOf(week, "Andy", m) + rankOf(week, "Logan", m),
-    }))
-    scored.sort((a, b) => a.all - b.all || a.ours - b.ours)
-    return Object.fromEntries(scored.map(({ m }, i) => [m, { rank: i + 1 }]))
-  }
+  const consensus = (week: number) =>
+    Object.fromEntries(Object.entries(consensusRanks(ballots, managers, week)).map(([m, rank]) => [m, { rank }]))
 
   // { Consensus: [{ week: "W3", Logan: 4, ... }], Logan: [...], ... }
   const series = {} as Record<RankSource, Record<string, string | number>[]>

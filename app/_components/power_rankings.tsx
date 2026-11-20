@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getRankings, type Author, type PowerRankingWeek } from "@/lib/power-rankings"
+import type { Author, PowerRankingWeek } from "@/lib/power-rankings"
 import { PowerRank } from "./power_rank"
 
 type Props = { weeks: PowerRankingWeek[] }
@@ -18,12 +18,13 @@ export function PowerRankingsFromUrl({ weeks }: Props) {
 
 export function PowerRankingsView({ weeks, week }: Props & { week?: string | null }) {
   const [author, setAuthor] = useState<Author>('andy')
+  if (weeks.length === 0) return null
   const found = weeks.findIndex((w) => String(w.week) === week)
   const index = found === -1 ? weeks.length - 1 : found
   const selected = weeks[index]
   const prev = weeks[index - 1]
   const next = weeks[index + 1]
-  const hasAuthors = selected.rankings.some((r) => 'loganDescription' in r)
+  const hasAuthors = selected.rankings.some((r) => r.loganDescription || r.andyDescription)
 
   return (
     <section className="space-y-4">
@@ -54,7 +55,7 @@ export function PowerRankingsView({ weeks, week }: Props & { week?: string | nul
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        {getRankings(weeks, selected.week).map((team) => <PowerRank key={team.name} {...team} author={author} />)}
+        {selected.rankings.map((team) => <PowerRank key={team.name} {...team} author={author} />)}
       </div>
       <p className="text-sm text-muted-foreground">
         Power rankings are constructed by averaging Logan&apos;s rankings, Andy&apos;s rankings, and ESPN&apos;s rankings. Week 3 was the first week of power rankings.

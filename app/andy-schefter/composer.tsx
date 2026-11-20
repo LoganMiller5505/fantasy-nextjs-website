@@ -9,13 +9,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
+import { shrinkImage } from "@/app/_components/shrink-image"
 import { postTweet, type PostState } from "./actions"
 import { TweetFields } from "./tweet-fields"
 
 const MAX_TEXT = 1000
 const MAX_IMAGES = 4
-const MAX_BYTES = 3 * 1024 * 1024 // matches MAX_UPLOAD_BYTES on the server
-const MAX_EDGE = 2048             // the server shrinks again to 1600; this just keeps uploads small
 
 type Picked = { key: string; blob: Blob; name: string; url: string; alt: string }
 
@@ -48,7 +47,7 @@ export function Composer({ avatar }: { avatar: string }) {
     setProcessing(true)
     for (const file of chosen) {
       try {
-        const blob = await shrink(file)
+        const blob = await shrinkImage(file)
         const p = { key: crypto.randomUUID(), blob, name: file.name, url: URL.createObjectURL(blob), alt: "" }
         setPicked((old) => [...old, p])
       } catch (e) {
@@ -167,46 +166,4 @@ export function Composer({ avatar }: { avatar: string }) {
       </div>
     </form>
   )
-}
-
-// Shrinks a picked image so uploads stay small (Vercel caps request bodies at 4.5 MB). GIFs are sent as
-// is so they stay animated.
-async function shrink(file: File): Promise<Blob> {
-  if (file.type === "image/gif") {
-    if (file.size > MAX_BYTES) throw new Error(`${file.name} is over 3 MB.`)
-    return file
-  }
-
-  let bitmap: ImageBitmap
-  try {
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" })
-  } catch {
-    throw new Error(`Couldn't read ${file.name}.`)
-  }
-
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
-  const canvas = document.createElement("canvas")
-  canvas.width = Math.round(bitmap.width * scale)
-  canvas.height = Math.round(bitmap.height * scale)
-  const ctx = canvas.getContext("2d")!
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-
-  let blob = await toBlob(canvas, "image/webp")
-  // Browsers that can't encode WebP hand back PNG instead; JPEG is much smaller. JPEG has no
-  // transparency, so redraw on white first.
-  if (blob?.type !== "image/webp") {
-    ctx.fillStyle = "#fff"
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    blob = await toBlob(canvas, "image/jpeg")
-  }
-  bitmap.close()
-
-  if (!blob) throw new Error(`Couldn't read ${file.name}.`)
-  if (blob.size > MAX_BYTES) throw new Error(`${file.name} is too large even after shrinking.`)
-  return blob
-}
-
-function toBlob(canvas: HTMLCanvasElement, type: string) {
-  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.85))
 }

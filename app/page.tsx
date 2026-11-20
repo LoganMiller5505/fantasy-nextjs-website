@@ -1,8 +1,7 @@
-import { sql } from '@/lib/db'
 import { Video } from './_components/vimeo_video'
 // import { Bio } from './_components/bio'
 import { Suspense } from 'react'
-import { POWER_RANKINGS } from '@/lib/power-rankings'
+import { getPowerRankingWeeks } from '@/lib/power-rankings'
 import { PowerRankingsFromUrl, PowerRankingsView } from './_components/power_rankings'
 import Link from "next/link";
 import { ChartColumn, ChartLine, Flame, Megaphone, NotebookPen } from "lucide-react";
@@ -16,7 +15,12 @@ const sections = [
   { href: "/slander-gallery", title: "Slander Gallery", description: "A compilation of all league slander", icon: Flame },
 ]
 
+// Rebuilt every few minutes so new ballots and scores from the sheet show up; saving write-ups
+// rebuilds it straight away
+export const revalidate = 300
+
 export default async function Page() {
+  const weeks = await getPowerRankingWeeks()
   return (
     <div className="space-y-10">
       <section className="grid items-center gap-6 lg:grid-cols-2">
@@ -44,9 +48,14 @@ export default async function Page() {
       </section>
 
       {/* Prerendered with the latest week; ?week=N is applied on the client */}
-      <Suspense fallback={<PowerRankingsView weeks={POWER_RANKINGS} />}>
-        <PowerRankingsFromUrl weeks={POWER_RANKINGS} />
-      </Suspense>
+      <div className="space-y-2">
+        <Suspense fallback={<PowerRankingsView weeks={weeks} />}>
+          <PowerRankingsFromUrl weeks={weeks} />
+        </Suspense>
+        <p className="text-sm">
+          <Link href="/power-rankings/edit" className="text-muted-foreground hover:text-foreground hover:underline">Edit write-ups</Link>
+        </p>
+      </div>
 
     </div>
   )

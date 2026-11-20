@@ -1,0 +1,247 @@
+-- Power ranking write-ups and the slander gallery, written on the site by editors (EDITOR_PASSWORD).
+-- Runs once, after 03_content.sql. The gallery's existing media is moved in afterwards by
+-- scripts/import-gallery.mts, since it's binary.
+
+-- One editor's write-up of one team in one week's power rankings. Ranks and records aren't stored:
+-- they're worked out from the sheet's ballots (league.power_ranking) and games (league.game).
+create table content.power_ranking_writeup (
+  year       smallint not null,
+  week_no    smallint not null,
+  manager_id smallint not null,
+  author     text     not null check (author in ('Logan', 'Andy', 'Both')),  -- 'Both': week 3's shared one-liners
+  text       text     not null check (length(text) between 1 and 2000),
+  primary key (year, week_no, manager_id, author),
+  foreign key (year, week_no)    references league.week,
+  foreign key (year, manager_id) references league.team
+);
+
+-- One meme, screenshot, graphic or video in the slander gallery
+create table content.gallery_item (
+  item_id      uuid    primary key,                         -- set by the app, so the item and its images insert together
+  kind         text    not null check (kind in ('image', 'video', 'youtube')),
+  title        text    not null check (length(title) between 1 and 200),
+  posted_on    date    not null,
+  type         text    not null check (type in ('meme', 'text', 'graphic', 'espn', 'video')),
+  creator_id   smallint references league.manager,          -- null: unknown
+  hall_of_fame boolean not null default false,
+  width        integer not null check (width  > 0),         -- of the image or video, so tiles are sized before they load
+  height       integer not null check (height > 0),
+  video_url    text,                                        -- kind 'video': its Vercel Blob URL (too big to go through a function)
+  youtube_id   text,                                        -- kind 'youtube'
+  created_at   timestamptz not null default now(),          -- orders items posted on the same day
+  deleted_at   timestamptz,                                 -- set by Delete so it can be undone; purged after 7 days
+  check ((kind = 'video') = (video_url is not null)),
+  check ((kind = 'youtube') = (youtube_id is not null))
+);
+
+-- The image itself, or a video's poster frame, in two sizes. Kept apart from gallery_item so listing
+-- the gallery never reads image bytes.
+create table content.gallery_image (
+  image_id uuid primary key default gen_random_uuid(),       -- also its URL, so it's unguessable and cacheable forever
+  item_id  uuid not null references content.gallery_item on delete cascade,
+  size     text not null check (size in ('full', 'thumb')),  -- full fits 2048×2048; thumb fits 800×800, for the grid
+  mime     text not null check (mime in ('image/webp', 'image/gif')),
+  bytes    bytea not null,
+  unique (item_id, size)
+);
+
+-- Who an item is about
+create table content.gallery_person (
+  item_id    uuid     not null references content.gallery_item on delete cascade,
+  manager_id smallint not null references league.manager,
+  primary key (item_id, manager_id)
+);
+
+-- The write-ups that were hard-coded in lib/power-rankings.ts, all from 2026
+insert into content.power_ranking_writeup (year, week_no, manager_id, author, text)
+select 2026, w.week_no, m.manager_id, w.author, w.text
+from (values
+  (3, 'Whieldon', 'Both', 'How the mighty have fallen'),
+  (3, 'Robert', 'Both', 'Has he lost the magic?'),
+  (3, 'Andy', 'Both', '115 points or nothing'),
+  (3, 'Logan', 'Both', 'The clear favorite'),
+  (3, 'Max', 'Both', 'Strongest player in the strongest division'),
+  (3, 'Ethan', 'Both', 'Weakest player in the weakest division'),
+  (3, 'James', 'Both', 'Only here because Ethan''s worse'),
+  (3, 'Matt', 'Both', 'Bouncing back strong from last season'),
+  (3, 'Dillon', 'Both', 'Going back to whence he came'),
+  (3, 'Landon', 'Both', 'Volatility personified'),
+  (3, 'Brady', 'Both', 'Reeking of fraudulence, but still undefeated'),
+  (3, 'Andrew', 'Both', 'Bugatti in trailer park'),
+  (4, 'Whieldon', 'Logan', 'It''s tough to pin down what exactly is going on with Whieldon''s team. So far, it''s been a coin flip whether he scores 130+ or is stuck in the double digits. Consistency will be key moving forward.'),
+  (4, 'Whieldon', 'Andy', 'Theoretically, Whieldon''s team should be much better than it has been so far. At least the roster finally had a complete game from every position this week.'),
+  (4, 'Robert', 'Logan', 'Has he lost his magic touch? Maybe it''s just the fact that untimely injuries and unfortunate player matchups have kept his score down. But ever since that week 1 one-point loss, nothing has been able to dull the unease surrounding his team.'),
+  (4, 'Robert', 'Andy', 'It''s time to admit Robert just has a bad team, hampered by poor running backs and let down by his wide receivers, excluding CeeDee. The schedule has been tough, but it''s only getting tougher. He has Max next on the docket and doesn''t play a team under .500 until Week 9.'),
+  (4, 'Andy', 'Logan', 'His team isn''t bad, but he''s the biggest victim of a shockingly competitive North division. It''ll be tough for him to string together wins when he has to play some truly good teams twice each.'),
+  (4, 'Andy', 'Andy', 'Worst case scenario for this week, everyone else in the division won. At least I scored more than 115 points? Is relying on the Vikings defense and kicker for points sustainable?'),
+  (4, 'Logan', 'Logan', 'Despite my horrendous and embarassing week 4 loss, I still have confidence in the top talent on my roster. I should be able to capitalize on a weak East division to make a strong push for the playoffs.'),
+  (4, 'Logan', 'Andy', 'Despite losing a trap game, his team is still too talented to fail. The rest of the competition in the division losing cushions the loss.'),
+  (4, 'Max', 'Logan', 'Even when Max lost, he still scored the third most points that week. If he stays as consistently strong as he has been so far, you''d be hard-pressed to predict many more losses for him.'),
+  (4, 'Max', 'Andy', 'Max has scored 130+ points in his last three games and looks like a juggernaut. The bench has been putting up points too. In a stacked division, he''s come out on top.'),
+  (4, 'Ethan', 'Logan', 'Quite possibly the weakest .500 team of all time, his RB injuries are immensely concerning. Strong performances from "breakout candidate"-type players have been the only thing keeping him afloat. That, and some very favorable opponent scheduling.'),
+  (4, 'Ethan', 'Andy', 'Is this the worst 2-2 team of all time? He didn''t break 85 points until this week. However if Tet, London, and Penix keep up this level of play he could potentially have something.'),
+  (4, 'James', 'Logan', 'Even a win against the division leader can''t help dull the pain of having to run the hospital that is his roster. It''d be tough for anyone to bounce back from this, and it''s really looking like he''s following the 2025 Matt trajectory.'),
+  (4, 'James', 'Andy', 'While the win over Logan was an exciting win, it was purely a pyrrhic victory. More starters fell to the sword, and literally his entire bench is hurt. He could field a starting caliber team with his hospital patients. What was the price he paid for the 2025 Championship victory??'),
+  (4, 'Matt', 'Logan', 'On paper, the roster is fine, but he has yet to prove that he can win a high-scoring affair. If all his players start performing at the same time, watch out, but otherwise, you can expect a pretty middling score with only a couple players setting the tone.'),
+  (4, 'Matt', 'Andy', 'The back half of Matt''s roster has been disappointing. Outside of Gibbs, it feels like he''s lacked any true difference makers so far.'),
+  (4, 'Dillon', 'Logan', 'Dillon always seems to bench the guys who breakout and start the ones who struggle. While most of these choices can be justified independently, he just can''t seem to string anything positive together.'),
+  (4, 'Dillon', 'Andy', 'No team in league history has ever made the playoffs starting 0-4. If you''re looking for a get-right game, too bad you''re playing 3-1 Logan. Better figure out how this roster is going to win games now before you play in the Loser''s Bracket. THE CHIP is beckoning.'),
+  (4, 'Landon', 'Logan', 'He had an ugly loss one week, but that clearly has not defined this roster. He has a strong team, and you can expect a great competition between him and Max for the division.'),
+  (4, 'Landon', 'Andy', 'Landon eked out a close win against a division rival to advance to 3-1. The 53 point game looks like it was an aberration, but the inconsistency of his WR2 slot is anything but.'),
+  (4, 'Brady', 'Logan', 'If you can avert your eyes from Brady''s bench, you can talk yourself into his continued success. Even with that consideration, he can''t drop far in the rankings after a quality loss to the newly minted first-place Max.'),
+  (4, 'Brady', 'Andy', 'Brady lost a close game that potentially could have been won if not for injuries. The rolling byes could be killer these next few weeks with how thin and lackluster his bench is.'),
+  (4, 'Andrew', 'Logan', 'Even without Josh Allen and JSN playing their signature hero ball this week, Andrew''s team once again put up a top 3 in the league score. His bench has looked strong, too, in large part due to smart waiver wire pickups. He has a true shot to contend, even at 2-2.'),
+  (4, 'Andrew', 'Andy', 'Andrew''s quietly put up 130+ in three of his first four games of the season. Decimating Robert was critical to keep up with the Jones''s of the division, and he did it without big performances from Josh Allen or JSN. The depth pieces are showing out.'),
+  (5, 'Whieldon', 'Logan', 'After an up and down start, Whieldon''s finally gotten two wins in a row. If he keeps up this potential newfound consistency, it''s hard to see anyone challenging him for the division in the next several weeks.'),
+  (5, 'Whieldon', 'Andy', 'Whieldon''s team has seemingly finally woken up these last couple weeks. He''s rebounded nicely after a skid and has been able to slingshot himself back into first in the division.'),
+  (5, 'Robert', 'Logan', 'A down week for Dak and CeeDee was a death sentence for Robert''s team. He has real contributors in Garrett Wilson and Tyler Warren, but outside of that, there''s really nothing to build on. Better hit the waiver wire for some RB4s elevated by injuries, bud. That might be your only chance.'),
+  (5, 'Robert', 'Andy', 'Robert lost yet another winnable game due to poor play by his running backs. Omarion Hampton in particular has been brutal, and may be the biggest bust of the draft in terms of output unrelated to injury. If he can''t beat a struggling Matt team that has been his perpetual property next week, he might have to start preparing for a trip to the Loser''s Bracket for the first time.'),
+  (5, 'Andy', 'Logan', 'Once again, Andy scores around 115 and gets a win, but he''s still in the basement of the division. Just ask Mike Tomlin: "The Standard" just won''t be enough to contend in the North. I''d start building up that Minecraft city to help pass the time until you inevitably win the loser''s bracket again.'),
+  (5, 'Andy', 'Andy', 'The litmus test of teams. No matter what the projections look like, 115 points will be scored. Unfortunately, it''s not enough to compete in the insanely competitive North.'),
+  (5, 'Logan', 'Logan', 'I''m not hitting the panic button yet, but I''m getting dangerously close to catching some "potential team" and "if man" allegations here. Thankfully, the East is so weak that I''m still leading the division, and at least there''s no more zero win teams left to lose to.'),
+  (5, 'Logan', 'Andy', 'Despite losing a trap game, his team is still too talented to fail. The rest of the competition in the division losing cushions the loss. Huh that felt familiar... I guess Logan just loves giving winless teams a helping hand. If the East wasn''t so pathetic there''d be more concern.'),
+  (5, 'Max', 'Logan', 'Max lost the lead in his division due to Landon''s historic performance as well as a relatively poor game by his standards, but the consistency of his team is not in question. Just look forward to the absolute cinema matchups between him and Landon.'),
+  (5, 'Max', 'Andy', 'Max had a bit of a down week, but it was still enough to beat a hated rival and advance to 4-1. His body of work has earned him this reprieve.'),
+  (5, 'Ethan', 'Logan', 'Penix going out means that Ethan only has Justin Herbert rostered at QB and that his WR1, Drake London, now depends on Tua''s meatball subs. The outlook is dire, and he''s a front-runner for Toilet Bowl contention.'),
+  (5, 'Ethan', 'Andy', 'Ethan''s team is underwhelming across the board. If Michael Penix is out for a while, it''ll hurt both his QB position and Drake London''s upside.'),
+  (5, 'James', 'Logan', 'Three words: injuries, injuries, injuries. It''s the story of James'' season so far, and even Jayden Daniels returning wasn''t enough to make him competitive. He''ll need to play the long game and hope the healing light of heaven shines down on his roster before the playoffs begin, or he''s in trouble.'),
+  (5, 'James', 'Andy', 'James legitimately had to start Jets RB Isaiah Davis this week. I don''t even know who that is. There''s nothing he can really do until his team gets healthier.'),
+  (5, 'Matt', 'Logan', 'Being on the receiving end of a league-high score isn''t fun, and neither is putting up sub-100 points two weeks in a row. His standing improves significantly if he can handle business against Robert, but with Max, Brady, and Andy looming in the weeks following, it''s hard to see a high ceiling for his team.'),
+  (5, 'Matt', 'Andy', 'In fairness, Matt never stood a chance against the performances of his last two opponents, but he hasn''t looked good in the losses either. It hurts that he''s been unable to capitalize on Logan tripping over himself.'),
+  (5, 'Dillon', 'Logan', 'A complete team win? From DILLON? I never thought I''d see the day. Now it''s up to him to prove this performance is the new normal rather than just a lucky break. At 1-4, though, it''s tough to see a true turnaround happening, even if the play improves.'),
+  (5, 'Dillon', 'Andy', 'Look who finally decided to show up. If he can keep up this production, maybe he could dig himself out of the 0-4 hole he put himself in. It''s probably too little too late.'),
+  (5, 'Landon', 'Logan', 'A record-setting win this week proves the kind of team he has. The low score three weeks ago was clearly a fluke, and Landon is securely in contender status. Quite the impressive turnaround from last year.'),
+  (5, 'Landon', 'Andy', 'Landon had a performance that only happens once a year, and how sweet it was that he could get revenge against Matt for last year''s playoffs. He and Max are the best teams in the league, and their showdowns Weeks 9 and 14 will be must-see.'),
+  (5, 'Brady', 'Logan', 'An ugly loss that came with a staggering amount of injuries. The record is good, but the roster is looking rough as ever. With bye weeks beginning to hit, I don''t see him keeping up his early season success for much longer.'),
+  (5, 'Brady', 'Andy', 'The injuries are piling up and the lack of depth is rearing its ugly head. Brady''s lost grip of the South, too.'),
+  (5, 'Andrew', 'Logan', 'Andrew quietly leads the league in points scored, and he''s made it clear he can string together wins with different players contributing each week. The North is brutal this year, but Andrew is primed to sneak into the mix for division title.'),
+  (5, 'Andrew', 'Andy', 'Sleep on him if you dare. Andrew is the only team to have broken 700 Points For this year, and the points are coming from more than Josh Allen and JSN. Every week he has someone new going for 20+, and it covers the flaws of those with a down game.'),
+  (6, 'Andrew', 'Logan', 'Andrew proved he can win the big games with a massive win over Max to take the division. With the most points for and an incredibly soft schedule in his future, Andrew will look to pull his record ahead of the crowd in the North so he can have a stress free couple of weeks before the playoffs.'),
+  (6, 'Andrew', 'Andy', 'Andrew''s regained control of the division by completing the season sweep on Max. Isaiah Likely and Chuba Hubbard have been some of the best steals of the draft and have really rounded out his team.'),
+  (6, 'Logan', 'Logan', 'A loss this week was all but guaranteed with Amon Ra and Ja''Marr on bye, to the point that it was even a talking point during trade conversations with Andy. However, in large part due to grabbing Germie Bernard off waivers, I snapped my embarassing two-game losing streak and now get my best two players back for the future.'),
+  (6, 'Logan', 'Andy', 'Logan has managed to go 3-0 against the North compared to the rest of the division who is 0-4 when facing them. He put up 139 points without his top two wideouts and has gotten back into a roll after losing to James.'),
+  (6, 'Whieldon', 'Logan', 'Don''t let the slow start and less-than-ideal QB situation distract you from the fact that Whieldon is hotter than any other team in the league right now. His division also looks clear for him to dominate. Three straight weeks of 140 or more? If he keeps this streak up, it''ll be tough for anyone to topple him.'),
+  (6, 'Whieldon', 'Andy', 'Whieldon''s team has fully awoken, putting up 140 points in his last three games and taking the reigns of the South. He can further cement his lead by pummeling Brady next week for the division lead.'),
+  (6, 'Max', 'Logan', 'Max has slowly been sliding down in points the last few weeks, which is fine against the Roberts of the league but was swiftly capitalized on by Andrew this week. Max''s team undeniably has the "it factor", but division wins are going to come at a premium for him unless he can find his groove again.'),
+  (6, 'Max', 'Andy', 'Max has looked a lot shakier these last couple weeks, but he did have some of his best players out on bye. It''s something to monitor over the next couple games.'),
+  (6, 'Landon', 'Logan', 'Right after setting a league record score, he drops an 88 point stinker of a game? The worst part about it is that he didn''t even have anyone THAT critical on a bye week. Maybe the inconsistency is just part of his team now, but the ceiling still feels sky high.'),
+  (6, 'Landon', 'Andy', 'Landon''s team is capable of truly anything, and you never know what''s coming. The only explanation I can find is that his team always has a stinker right after taking the #1 seed. It''s really the only answer I''ve got.'),
+  (6, 'Andy', 'Logan', 'Andy scored third most in the league and still lost, an unlucky stat shared only by his division rivals Andrew and Max. That really is a good showcase for how strong his division is, which just makes the setback from this loss all the more difficult to recover from despite an all around decent team.'),
+  (6, 'Andy', 'Andy', 'This was the most points I''ve scored this season and it sadly came in a loss. Even worse, I failed to capitalize on the rest of the division falling to 4-2. However, I''m getting some important pieces back from bye and injury this week, so I should be fine.'),
+  (6, 'Matt', 'Logan', 'At the end of the day, all you need to know is that he''s scored under 100 points 3 weeks in a row. The win this week shouldn''t deflect attention from how poor his team has performed recently, even if you would expect the talent on the roster to show out more consistently.'),
+  (6, 'Matt', 'Andy', 'Matt got a potentially season-saving win and finally, finally beat Robert. He hasn''t put up more than 100 points the last three weeks though, but at least he gets Gibbs back from the bye.'),
+  (6, 'Ethan', 'Logan', 'How is he 3-3? This team is fraudulent from top to bottom. At least he can get the occasional lucky game where the Falcons offense goes off. His team is also relatively injury-free the last couple weeks, unlike someone else...'),
+  (6, 'Ethan', 'Andy', 'Ethan got saved by some late-game heroics from the Falcons offense, and improved to 3-3. It''s not an impressive three wins--he''s only broken 100 points twice this year--but three wins is three wins.'),
+  (6, 'Brady', 'Logan', 'How is he 3-3? This team is fraudulent from top to bottom. He barely has enough healthy players to field a full team, much less a competitive one. He''s only higher than everyone else below out of respect for his record, but even that can quickly change with just a couple more bad weeks.'),
+  (6, 'Brady', 'Andy', 'Everything is unraveling for Brady. Everyone''s injured and he''s lost three in a row. He needs some players to be healthy next week against Whieldon, bad.'),
+  (6, 'Dillon', 'Logan', 'Dillon looked to have this one against a floundering Ethan team in the bag, right up until Ethan stormed back for an insane win. I''m sure his hope in the roster is still there, but when tied for the worst record in the league, there''s not much to buy into long-term.'),
+  (6, 'Dillon', 'Andy', 'Click on Dillon''s players in fantasy and you''ll see almost all of them are top 15 at their position. If he can just get everyone on the same page, now with Josh Jacobs back, he could at the very least be competitive. At 1-5 his season is over, but he could at least avoid the dreaded bottom two seeds in the Loser''s Bracket.'),
+  (6, 'Robert', 'Logan', 'A Monday night player vs player showdon, down a single point? These are the games that the Robert of seasons past wins easily. Unfortunately, Mike Evans went down, showing that the magic is truly gone.'),
+  (6, 'Robert', 'Andy', 'Robert lost for the first time ever to Matt last week, and is now sitting solely in last in his division at 1-5. Nah, read that again. You love to see it.'),
+  (6, 'James', 'Logan', 'Update: His team is, in fact, still injured. He won this week, but that doesn''t change the prognosis here.'),
+  (6, 'James', 'Andy', 'Another victory, another devastating injury, this time to Terry McLaurin. Every week players are shuffling in and out with injury. If he could just get everyone back healthy, he''d have some semblance of a chance, but it''s over.'),
+  (7, 'Landon', 'Logan', 'He handled business against Robert and advanced to 5-2. The inconsistency he''s shown is probably not a bug but a feature at this point. At the very least, you can never count him out of any given matchup.'),
+  (7, 'Landon', 'Andy', 'Landon''s scored between 120 and 130 points 3 of the first 7 games, so that seems to be his norm. He''s reclaimed the top seed in the league again, but does that mean he''ll choke again this week?'),
+  (7, 'Whieldon', 'Logan', 'Yeah, Whieldon lost to Brady, but he''s still a frontrunner. He scored third most in the league, and his bench is putting up points, too. I''m willing to chalk this loss up to luck and still have full faith in his team.'),
+  (7, 'Whieldon', 'Andy', 'A frustrating loss to Brady still has Whieldon at the top of the division. He still put up the third most points in the league this week and will have James Cook back from bye, so he''ll be more than fine.'),
+  (7, 'Logan', 'Logan', 'At some point my team needs to have the clutch gene, and they just have not shown it in three losses to what really should really be considered "lesser competition". At least these last two weeks, which were my most problematic for bye weeks, have finally passed. No more excuses from now on.'),
+  (7, 'Logan', 'Andy', 'Even with all his Jags out on bye, Logan still managed to come within a point of tying Ethan. This week he''ll look to flex his team''s might with a full roster and tie the season series with James.'),
+  (7, 'Andrew', 'Logan', 'This just wasn''t Andrew''s week. With Josh Allen on bye, everyone who had been contributing the past few weeks just left JSN holding the bag. This still doesn''t spur any concern for his team from me, though, and he should bounce back nicely.'),
+  (7, 'Andrew', 'Andy', 'This week showed the clear depth issues Andrew''s team has. The goods news is he''ll have Josh Allen for the rest of the year after the bye, but he needs to figure out his WR2/FLEX position quickly. Jalyen Waddle has not been the answer Andrew''s hoped for.'),
+  (7, 'Max', 'Logan', 'The win was nice, but I have some big concerns about Max''s team. His points have only gone down the last 4 weeks (even when you consider him starting the injured Devonta Smith over Tee Higgins). It''s hard to totally doubt a 5 win team, but the faith is wavering.'),
+  (7, 'Max', 'Andy', 'Max got a lucky break with his opponent this week, but his roster has been slipping in performance. Moving Burrow and Tee off the bench should give his team a needed shot in the arm. Their strong performances next week will make up for the fact they''re decimating his poor Titans.'),
+  (7, 'Brady', 'Logan', 'Snapping his losing streak was key to regaining control over his season, and doing it against Whieldon to tie up the division is a nice cherry on top. The roster''s still questionable, but he has the space to make some moves in the waiver wire to round out his team, if he''s savvy enough.'),
+  (7, 'Brady', 'Andy', 'Brady had a season saving win that keeps him in not just the wild card race but the division hunt as well. It was good to see some signs of life after a three game losing streak.'),
+  (7, 'Ethan', 'Logan', 'His team is just flukey and can only win off Falcons stacked TDs... right? He''s DEFINITELY fraudulent, even at 4-3... RIGHT?? His team feels so much worse than his record, but he just keeps winning. I think we found where Robert''s dark magic went.'),
+  (7, 'Ethan', 'Andy', 'Ethan''s snatched victory from the jaws of defeat twice in a row now to crawl to a winning record. It remains to be seen if he, and more importantly the Falcons, can keep up this win streak.'),
+  (7, 'Andy', 'Logan', 'Sure, it was a down week across the league, but scoring below 115 for Andy HAS to spell doom for his team. There''s no other interpretation that makes sense. A loss while everyone else in his division wins is also becoming an unfortunate pattern.'),
+  (7, 'Andy', 'Andy', 'The floor fell through with this team, and another winnable game was lost due to poor roster management. The division race is almost entirely out of view, and a loss to Landon next week would make the climb to even reach a wild card berth insurmountable.'),
+  (7, 'Matt', 'Logan', 'Matt has gone four weeks without scoring over 100 points, which holds true even if he didn''t forget to set his lineup this week. Simply put, there is no momentum here. The expectations for the roster just haven''t materialiazed on the field yet.'),
+  (7, 'Matt', 'Andy', 'Matt''s team continues to underwhelm. He''s in dire straits losing 4 of his last 6 games and failing to reach triple digits the last 4 weeks. He''s only a game back of the division lead so a comeback is still very possible, but it''s up to him and him alone.'),
+  (7, 'Dillon', 'Logan', 'There''s definitely reason for optimism with Josh Jacobs back to help bolster a surprisingly talented RB room, but you need more than optimism to make a playoff push. With only 2 wins and everyone else in his division at 4-3, the path is only getting harder.'),
+  (7, 'Dillon', 'Andy', 'Dillon''s won two of his last three after an 0-4 start and is trying his best to sneak back into the playoff picture. With Josh Jacobs back, he certainly has the roster to try and compete.'),
+  (7, 'James', 'Logan', 'James is finally out of the basement. With Saquon back from injury, Colston Loveland reuniting with a QB who can actually deliver him the ball, and Tre Tucker breaking out as a true WR1, there might be something here. Probably not, but he''s one game behind in the division with the chance to sweep the division leader next week.'),
+  (7, 'James', 'Andy', 'James keeps finding ways to win, despite a decrepit roster. Good news for him, though, is a lot of those pieces could be coming back this week. If so, he has the chance to upend Logan and climb into real contention for the division and in the hunt for the wild card.'),
+  (7, 'Robert', 'Logan', 'A new basement dweller has been crowned. Make yourself at home down here, Robert. It could be a while.'),
+  (7, 'Robert', 'Andy', 'Jacory Croskey-Merrit''s injury opens up Rachaad White as a viable starting option this week. That''s the best news Robert''s had in weeks. He has a real shot at winning against a fraudulent Ethan team too and potentially begin to escape the league''s basement.'),
+  (8, 'Logan', 'Logan', 'I got sweet, sweet revenge for the trap game loss to James earlier in the year to pull ahead once again in the East. This team at its best with all its stars showing out is near unbeatable, but stringing those kinds of performances together has been a challenge I''ll look to improve upon.'),
+  (8, 'Logan', 'Andy', 'Monday night helped Logan pull away and secure the win over James. With no more players of significance (sans D''Andre Swift) on bye the rest of the season, he has the firepower to clinch a division crown. He has to take on a handful of contenders these next few weeks, but the division is still his to lose.'),
+  (8, 'Landon', 'Logan', 'Another dominant win keeps Landon atop the league for consecutive weeks. He''s dropped some stinkers before, so nothing''s ever guaranteed with this team, but his great games now clearly outnumber his bad ones.'),
+  (8, 'Landon', 'Andy', 'Landon looks primed to take the North with the outings of these last few weeks. The down games have shown to be blips on the radar and not the norm. Jaylen Warren being out on bye could definitely throw a wrench into his plans, though.'),
+  (8, 'Max', 'Logan', 'Despite the big win without even starting a healthy RB2 and WR2, I still worry about the sustainability of his team. Burrow and Tee can''t combine for nearly 80 every week, but with the 49ers bye week passed, it wouldn''t surprise me to see Max take back his throne atop the league again.'),
+  (8, 'Max', 'Andy', 'Max got a huge game from Tee and Burrow, which helped him eke out a win over Whieldon. Up next is a showdown with everything on the line against Landon. The difference between a wild card and a first round bye is on the line. Absolute cinema.'),
+  (8, 'Andrew', 'Logan', 'What else is there to say about Andrew''s team? Josh Allen and JSN led the way alongside other contributors to a convincing, complementary team win. There''s definitely a case to be made that Andrew''s team is the most well-rounded in the league.'),
+  (8, 'Andrew', 'Andy', 'Andrew had yet another great game backed by strong performances from the front of his roster. If only he could find a WR2. Omar Cooper Jr. was unfortunately not the answer last week, and he''ll return to Jaylen Waddle for this week.'),
+  (8, 'Whieldon', 'Logan', 'Whieldon took a page out of my playbook and is selling the division that was basically hand-wrapped and gifted to him. It''s looking like his team is destined to be hot-and-cold, but he''ll need to turn it on quick with a three-way tie for the division looming.'),
+  (8, 'Whieldon', 'Andy', 'Whieldon has the fourth most points for and least points against, so it''s bizarre he''s only 4-4. He lost, but on the bright side everyone else in the division did too. He hangs onto first for now.'),
+  (8, 'Brady', 'Logan', 'With half his team on bye, expectations were low, but Brady still found a way to disapoint. At least every other team in his division also lost, so the door is still open. Whether the team realizes that opportunity or not remains to be seen.'),
+  (8, 'Brady', 'Andy', 'Brady''s lucky the other 4-4 teams below him had an even worse October than he did; he''s barely hanging on to the sixth seed with a small lead on the tiebreaker. He gets a pass for last week since literally half his roster was on bye. However, there''s not much room left for error.'),
+  (8, 'Matt', 'Logan', 'If you ignore Lamar getting injured on the first play, Matt actually had a pretty solid week. With Mahomes on the bench ready to take the reins, he has a shot to really turn it around.'),
+  (8, 'Matt', 'Andy', 'Matt finally broke 100 points for the first time in over a month and knocked down a playoff hopeful in Brady. Lamar''s injury is a rough one, but he''s got the opportunity to put this last stretch behind him and make a run at the playoffs.'),
+  (8, 'Dillon', 'Logan', 'Ignore the record for a second, and there''s a solid team here. He just always seems to run into the wrong teams at the wrong time, and his points against being most in the league demonstrates that well.'),
+  (8, 'Dillon', 'Andy', 'Another offensive effort sadly wasted. At some point, you hope that all these points could translate into wins. His team is humming at full power now, and he''ll be more than safe come time for the Loser''s Bracket.'),
+  (8, 'Andy', 'Logan', 'Scoring 115 was about all Andy had going for him, and even that failed as he put up a franchise low points total. His key players are all either regressing or dying, and not even the ever-reliable Vikings defense or kicker could help him this time.'),
+  (8, 'Andy', 'Andy', 'Long story short, it''s over. This roster can''t compete, and with two trips against Andrew and one more fight against Max, there''s no hope. I need to sweep my opponents outside the division and hope to steal a win against Andrew or Max to even get to a mere 7-7.'),
+  (8, 'James', 'Logan', 'Had he pulled off the upset and season sweep against me this week, his team would likely be viewed a little differently. But this one loss drastically hurts his chances, and the team doesn''t exactly inspire confidence. At least he''s mostly healthy now?'),
+  (8, 'James', 'Andy', 'James might have finally been discharged from the hospital. He''s got everyone who could return coming back, including Breece Hall. With how the rest of the wild card hopefuls have performed, he could have a shot at contending for the sixth seed.'),
+  (8, 'Ethan', 'Logan', 'Ethan''s season goes as the Falcons'' does. It''s fitting then that despite TECHNICALLY being in a good spot to contend for the division, nobody actually believes in the team to get it done. Dropping 65 points this week doesn''t help his case, either.'),
+  (8, 'Ethan', 'Andy', 'I''m so done with this guy. You can''t lose to 2026 Robert. His team is fraudulent to the core, and this week proved why relying on the Falcons is an inevitable recipe for failure.'),
+  (8, 'Robert', 'Logan', 'I don''t care that he got a win against a generationally terrible Ethan performance, he''s still in the basement.'),
+  (8, 'Robert', 'Andy', 'Robert''s first win in weeks has to at least give him a sense of reprieve. The roster is still in shambles though, especially with a new ankle injury for Jeremiah Love. That means the horror of Omarion Hampton has to return.'),
+  (9, 'Max', 'Logan', 'Max once again takes his throne atop the league. While I was concerned about his slide before, he''s bounced right back. With Keenan Allen going to the 49ers, he gains another potential stack with Purdy in addition to the already potent Burrow/Tee grouping.'),
+  (9, 'Max', 'Andy', 'The Max/Landon game didn''t disappoint, with Max retaking the top spot. His roster has bounced back from the down weeks, and with Keenan Allen being traded to the 49ers, looks primed to take the number 1 seed.'),
+  (9, 'Andrew', 'Logan', 'He still got the win even with most of his stars having a down week. Don''t let the low points fool you, Andrew''s not going to go down without a serious fight for his division.'),
+  (9, 'Andrew', 'Andy', 'Andrew''s looked shakier these last couple weeks, but he''s still winning. He''s now back up to second in the North.'),
+  (9, 'Landon', 'Logan', 'A tough loss to Max makes the path to the one seed a lot harder for him, but Landon absolutely still has the potential to push for it. Puka''s injury threatens to derail his season though, especially with how inconsistent his other WR options have been.'),
+  (9, 'Landon', 'Andy', 'A close loss to the now 7-2 Max shouldn''t deter Landon from his performance. All three losses he''s had have now been to the current division leaders. The Puka injury, on the other hand, is a severe setback with how his other receivers have fared.'),
+  (9, 'Whieldon', 'Logan', 'A big win helps pull him ahead in his division, and with an easy remaining schedule plus the fraudulence of Brady and Ethan, it should be his to lose. Underperformers such as Chase Brown and his entire QB room are becoming real thorns for his team, though.'),
+  (9, 'Whieldon', 'Andy', 'Matthew Golden''s stellar performance carried Whieldon to a win to pull him out of the muck of the South. He''s got a very favorable schedule these next couple weeks, and should be in good order to take care of business.'),
+  (9, 'Logan', 'Logan', 'The potential team has arrived. *Hypothetically*, with the most points for in the league as well as the trade news of Kirk Cousins and Josh Downs to help boost my roster, I *should* be in good shape. But the wins just aren''t materializing.'),
+  (9, 'Logan', 'Andy', 'Logan continues to choke away winnable games to the South. He''s now 0-3 against them and 2-4 in his last 6. It''s very possible we get a Whieldon/Logan rematch in the playoffs, and it''d probably go like how we saw here.'),
+  (9, 'Andy', 'Logan', 'He''s in the playoffs now? After we (yes, WE) all doomed on him last week??? Don''t get too excited, though. He has an absolute gauntlet coming up with the hardest opponent win percentage of anyone. It''d be hard for even the league''s best to come out on top with that schedule.'),
+  (9, 'Andy', 'Andy', 'This was the absolute best case scenario for me this week. Every matchup I needed to go my way did, and to top it all off I now control tiebreaker. A chance to catch the sixth seed is back in hands.'),
+  (9, 'Brady', 'Logan', 'Brady''s roster is caught with some of the worst start/sit decisions of anyone. There''s no logic except that whoever he starts will drop 0 and whoever he benches will drop 20+, which makes for a frustrating last few weeks.'),
+  (9, 'Brady', 'Andy', 'Losing to Dillon was a major setback. It ties Brady up with Matt and I at 4-5 for the sixth seed, opens the window for Dillon to sneak back into the picture, and ends any real hope of a division title. With trips against Landon, Logan, and Whieldon still looming, the sixth seed looks to be a winner-take-all showdown between Brady and I in Week 11.'),
+  (9, 'Dillon', 'Logan', 'Dillon put up most in the league this week, which is the direct result of a solid bounceback over the last three weeks. With how even the playing field is now, the dream of a six seed which once seemed so far away is definitely possible.'),
+  (9, 'Dillon', 'Andy', 'Scoring the most points in the league this week proved that the second half surge is real. If only he could''ve gotten more help. With how his roster has been performing, there''s renewed hope in a playoff push.'),
+  (9, 'Ethan', 'Logan', 'At some point he''s going to have to drop Pacheco or Achane to make room for players that actually have a chance at starting. Otherwise, it''s just gonna keep being boom or bust with the Falcons roster every week.'),
+  (9, 'Ethan', 'Andy', 'Ethan and the three stooges below him are near indistinguishable in how dreadful they are. At least having the Falcons trio gives him a hair more upside over the others. Make no mistake though, all four of these bottom-feeders are garbage.'),
+  (9, 'Matt', 'Logan', 'Matt keeps shooting himself in the foot by starting injured players, but it''s not like he has the depth that would help him get more wins even if he did adjust his lineup. Somehow, his roster feels like one of the most deficient in the league.'),
+  (9, 'Matt', 'Andy', 'Matt technically controls his own destiny to reach a division title, but he''s cooked. If Mahomes or Pickens miss time, he is even more cooked. His roster is devoid of any talent, and he''s staring straight into the barrel of the Toilet Bowl.'),
+  (9, 'Robert', 'Logan', 'As much as I wish that I could''ve kept Robert in the basement, a head to head win against James and a quiet 2-game win streak props him up just enough to avoid an extended stay.'),
+  (9, 'Robert', 'Andy', 'Robert, somehow, has managed to win two in a row and sneak in front of James in the rankings. He gets the nod over him because CeeDee can at least offer some big games. The East as a whole is utterly bleak this year.'),
+  (9, 'James', 'Logan', 'The seat''s still warm from Robert, but James finds himself back in his home in the basement once again. Michael Wilson''s season-ending injury really hurts his WR position unless Jordan Tyson picks it up fast.'),
+  (9, 'James', 'Andy', 'This week''s outcome was the difference between James being tied for the sixth seed and being last in the league. That''s how small the margins are this year. With Michael Wilson out for the season and no true difference makers on his team, James is squarely back in the basement.'),
+  (10, 'Max', 'Logan', 'A great win off the backs of his studs once again keeps Max at the top as the team to beat. With his Charmin Soft upcoming schedule of Sleepy Choke Flacco, division basement dweller Andy, fraudulent Ethan, and Landon''s hospital team, the one seed feels virtually locked down.'),
+  (10, 'Max', 'Andy', 'In a league that''s been full of upsets this season, Max has been unwavering. His only two losses are to Andrew, and this last week he managed to stave off a ferocious attack by James. Burrow, McCaffrey, Tee, and Purdy have been on fire this year, and he''s reaping the rewards.'),
+  (10, 'Andrew', 'Logan', 'With Kyren dropping 5 points and Omar Cooper Jr. getting injured with 0, Andrew... put up 165?? It feels like his team has yet to truly reach its pinnacle, and he''s still winning in dominant fashion. Nobody trade him a solid WR2, or he might actually become unstoppable.'),
+  (10, 'Andrew', 'Andy', 'Andrew finally kicked things back up to his standard this week after decimating me. Another notch inches him closer to a North title and the coveted one seed. He''s been playing second and even third fiddle in the division for most of the year; can he climb to the top?'),
+  (10, 'Whieldon', 'Logan', 'It wasn''t the most convincing win as Whieldon had to rely on Chase Brown heroics (who would''ve predicted THAT?) late Sunday night to pull ahead, but he got the win nonetheless. That''s all he needed to do as he holds on to his division lead with a fun roster, albeit streaky at times.'),
+  (10, 'Whieldon', 'Andy', 'Another classic shellacking for Whieldon over Ethan. It wasn''t as flashy as some of the other victories this week, but it was more than enough to fend off some divisional mediocrity.'),
+  (10, 'Logan', 'Logan', 'After scoring the most points in league history in a loss, it''s clear my team is better than its record. At the end of the day though, that doesn''t matter. The fact is that I''m tied for the division at .500 and at risk of quickly falling out of the playoffs if I don''t string together some non-hypothetical wins soon.'),
+  (10, 'Logan', 'Andy', 'Another game masterfully choked. Logan''s having a stroke over putting up 170 points and still losing to Matt. He''ll be fine in the long run, but man it''s so funny.'),
+  (10, 'Landon', 'Logan', 'I''m sorry Landon, but I think this season is over. There''s still some juice left in his RB room, but the serious injuries to Bowers and Puka tank the starting core too hard to recover from. He might limp into the playoffs still off the back of his current record, but I don''t see him making many waves once there.'),
+  (10, 'Landon', 'Andy', 'Landon might be in deep deep trouble trouble if Bowers misses extended time. Early returns look positive, but having both Puka and Bowers out absolutely cripples his team. He''s already slipped to third in the North and lost two in a row; he needs a get-right game immediately.'),
+  (10, 'Matt', 'Logan', 'I''m not totally buying into Matt yet. Given his average PPG before this week was 99 (fuck you Matt), the 176 really feels like a fluke. That being said, he''s tied for the division and we''ve all been saying that "his roster should be performing better than it has been". Maybe this is the start of that payoff.'),
+  (10, 'Matt', 'Andy', 'Pretty good job by Matt finding his way back to .500 and finally tying up the division lead for the East. He''s in firm control of his destiny, and has the schedule advantage over Logan to make winning the East a reality.'),
+  (10, 'Brady', 'Logan', 'The win this week was just pure luck, if we''re being honest. Seriously, go look at his players'' scores and see just how deeply mid they all were. Of course Ryan Flournoy had a solid game on his bench though, just wait for the 0 point start next week. Even though he''s just a game back, I''m not gonna be making any bets on this team.'),
+  (10, 'Brady', 'Andy', 'Brady''s unconvincing win over Landon is enough to put him back in the playoff picture at 5-5. He''s got a rough bunch of players on bye this week and it doesn''t help that he''s still got Logan and Whieldon to play, so it may be hard to stay in the picture.'),
+  (10, 'Robert', 'Logan', 'Since I made the "Robert Voodoo Magic" video, he''s gone 3-0 after being 1-6 the previous weeks. The first two of these wins weren''t convincing enough to buy in, but after dropping 140 this past week and winning the Emmett Johnson sweepstakes? Robert MIGHT be back, and with the sorry state of the East, anything is possible for his team now.'),
+  (10, 'Robert', 'Andy', 'Robert is quietly making his way up the standings with his third win in a row. After his mandatory loss to Whieldon this week, the schedule opens up for him to potentially get to seven wins. This is worst case scenario.'),
+  (10, 'Andy', 'Logan', 'Andy''s gonna cope that he can still make the 6 seed somehow, but it''s over. This team has been hit or miss the last few weeks, but "hit" just means scoring 115. His once vaunted WR room has been reduced to Olave''s inconsistency, a concussed Luther Burden, and Droppin'' DK Metcalf. The RBs outside of now-injured K9 aren''t pitching in, either.'),
+  (10, 'Andy', 'Andy', 'This week was always penciled in as a loss, but the scoreboard didn''t need to look so ugly. Getting Burden back from the bye and K9 from his injury should lead to me finding myself back in the win column this week over a limited Brady. The playoffs are still in my sights, but this week is can''t-lose.'),
+  (10, 'Ethan', 'Logan', 'The Falcons have a bye next week then play the Vikings and Browns defenses week 11 and 13. That''s all you need to hear to know that Ethan is fried.'),
+  (10, 'Ethan', 'Andy', 'It wasn''t until I was editing my descriptions that I realized I hadn''t written one for Ethan. This is how irrelevant his team is. He''ll probably get the win over Dillon this week, but his team is still going nowhere fast.'),
+  (10, 'James', 'Logan', 'Jordan Tyson has looked great in his debut games so far, and Justin Jefferson is trending up with Kirk Cousins back. He''s relatively healthy and showing promise, but finally showing promise in week 10 is too little too late for James.'),
+  (10, 'James', 'Andy', 'James has lost the hope he once had. There was a brief period where it appeared things were coalescing, but the roster remains a mess of injury-prone and underwhelming players. This remains true even after his trade with Robert, by the way.'),
+  (10, 'Dillon', 'Logan', 'The "minor setback for a major comeback" arc has officially ended as the setbacks have just been too much to offset. Drake Maye out, JT stuck in hell (Indianapolis), and Josh Jacobs out after Dillons diamond hands-ed him all year, combined with his record, officially does his team in for me.'),
+  (10, 'Dillon', 'Andy', 'It''s all falling apart for Dillon. There was genuine hope a few weeks ago, but Drake Maye''s injury might be the final nail in the coffin. With Christian Watson on bye and Jonathan Taylor becoming less effective by the week, it might be time to return to focusing on escaping the chip.')
+
+) as w (week_no, manager, author, text)
+join league.manager m on m.name = w.manager;
+
+do $$ begin
+  if (select count(*) from content.power_ranking_writeup) <> 180 then
+    raise exception 'Expected 180 write-ups, got %', (select count(*) from content.power_ranking_writeup);
+  end if;
+end $$;

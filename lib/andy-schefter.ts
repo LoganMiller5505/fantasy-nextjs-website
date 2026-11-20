@@ -1,5 +1,5 @@
 // Tweets live in the database (content.tweet, see lib/tweets.ts) and are posted from /andy-schefter by
-// whoever has TWEET_PASSWORD. This file holds the profile and the shared types.
+// any editor (EDITOR_PASSWORD, see /editor). This file holds the profile and the shared types.
 
 export type TweetImage = { src: string, alt: string, width: number, height: number }
 export type Tweet = {

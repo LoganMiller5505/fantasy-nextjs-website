@@ -1,42 +1,22 @@
 "use server"
 
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import { POSTER_COOKIE, expectedPosterToken } from "@/lib/auth"
 import { sql } from "@/lib/db"
-import { isPoster } from "@/lib/poster"
-import { MAX_UPLOAD_BYTES, normalizeImage } from "@/lib/tweet-images"
-import { fillEngagement, todayCentral, type Counts } from "@/lib/tweets"
+import { isEditor } from "@/lib/editor"
+import { UUID, isValidDate, titleFromFileName, todayCentral } from "@/lib/forms"
+import { MAX_UPLOAD_BYTES, normalizeImage } from "@/lib/content-images"
+import { fillEngagement, type Counts } from "@/lib/tweets"
 
 const PAGE = "/andy-schefter"
 const MAX_TEXT = 1000
 const MAX_IMAGES = 4
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-export async function posterLogin(formData: FormData) {
-  const password = process.env.TWEET_PASSWORD
-  if (!password || formData.get("password") !== password) redirect(`${PAGE}/login?error=1`)
-
-  ;(await cookies()).set(POSTER_COOKIE, (await expectedPosterToken())!, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 90,
-  })
-  redirect(PAGE)
-}
-
-export async function posterLogout() {
-  ;(await cookies()).delete(POSTER_COOKIE)
-}
+const TWEET_IMAGE_EDGE = 1600
 
 export type PostState = { error?: string; ok?: boolean }
 
-// Server functions can be called by a direct POST, so each one checks the poster cookie itself
+// Server functions can be called by a direct POST, so each one checks the editor cookie itself
 export async function postTweet(_prev: PostState, formData: FormData): Promise<PostState> {
-  if (!(await isPoster())) return { error: "You're not logged in to post." }
+  if (!(await isEditor())) return { error: "You're not logged in to post." }
 
   const fields = readFields(formData)
   if ("error" in fields) return fields
@@ -50,7 +30,7 @@ export async function postTweet(_prev: PostState, formData: FormData): Promise<P
 
   let images
   try {
-    images = await Promise.all(files.map(normalizeImage))
+    images = await Promise.all(files.map((f) => normalizeImage(f, TWEET_IMAGE_EDGE)))
   } catch {
     return { error: "One of the images couldn't be read." }
   }
@@ -61,7 +41,7 @@ export async function postTweet(_prev: PostState, formData: FormData): Promise<P
         values (${tweetId}, ${date}, ${text}, ${counts.replies}, ${counts.retweets}, ${counts.likes}, ${counts.views})`,
     ...images.map((image, position) => sql`
       insert into content.tweet_image (tweet_id, position, alt, width, height, mime, bytes)
-      values (${tweetId}, ${position}, ${alts[position] || altFromName(files[position].name)},
+      values (${tweetId}, ${position}, ${alts[position] || titleFromFileName(files[position].name)},
               ${image.width}, ${image.height}, ${image.mime}, decode(${image.bytes.toString("base64")}, 'base64'))`),
   ])
 
@@ -71,7 +51,7 @@ export async function postTweet(_prev: PostState, formData: FormData): Promise<P
 
 // Edits the text, date and counts. Images stay as they were posted.
 export async function updateTweet(_prev: PostState, formData: FormData): Promise<PostState> {
-  if (!(await isPoster())) return { error: "You're not logged in to post." }
+  if (!(await isEditor())) return { error: "You're not logged in to post." }
 
   const id = String(formData.get("id") ?? "")
   if (!UUID.test(id)) return { error: "That tweet doesn't exist." }
@@ -96,7 +76,7 @@ export async function updateTweet(_prev: PostState, formData: FormData): Promise
 // Deleting only marks the tweet, so it can be undone with restoreTweet. Tweets deleted over a week ago
 // are removed for good (with their images) whenever another is deleted.
 export async function deleteTweet(id: string) {
-  if (!(await isPoster())) throw new Error("Unauthorized")
+  if (!(await isEditor())) throw new Error("Unauthorized")
   if (typeof id !== "string" || !UUID.test(id)) return
   await sql.transaction([
     sql`update content.tweet set deleted_at = now() where tweet_id = ${id} and deleted_at is null`,
@@ -106,7 +86,7 @@ export async function deleteTweet(id: string) {
 }
 
 export async function restoreTweet(id: string) {
-  if (!(await isPoster())) throw new Error("Unauthorized")
+  if (!(await isEditor())) throw new Error("Unauthorized")
   if (typeof id !== "string" || !UUID.test(id)) return
   await sql`update content.tweet set deleted_at = null where tweet_id = ${id}`
   revalidatePath(PAGE)
@@ -129,16 +109,4 @@ function readFields(formData: FormData) {
     given[key] = Number(raw)
   }
   return { text, date, counts: fillEngagement(given) }
-}
-
-// "YYYY-MM-DD" that's a real calendar date (no Feb 30)
-function isValidDate(date: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
-  const d = new Date(`${date}T00:00Z`)
-  return !isNaN(d.getTime()) && d.toISOString().startsWith(date)
-}
-
-// "RobertLosing.png" → "Robert Losing", "dillon_relegation.jpg" → "dillon relegation"
-function altFromName(name: string) {
-  return name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim()
 }

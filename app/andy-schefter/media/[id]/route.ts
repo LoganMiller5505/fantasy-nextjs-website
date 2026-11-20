@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server"
-import { isMember } from "@/lib/poster"
+import { isMember } from "@/lib/editor"
+import { UUID } from "@/lib/forms"
 import { getImage } from "@/lib/tweets"
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // A tweet image straight from the database. The proxy already requires the site password here; this
 // checks again in case the proxy's matcher ever changes. Images never change once posted, so the

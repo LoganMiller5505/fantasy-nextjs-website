@@ -16,7 +16,8 @@ function RankChange({ newRank, oldRank }: { newRank: number; oldRank?: number })
 }
 
 export function PowerRank({ name, alias, newRank, oldRank, record, logoPath, description, loganDescription, andyDescription, author }: PowerRankInfo & { author: Author }) {
-    const text = (author === 'andy' ? andyDescription : loganDescription) ?? description;
+    // Falls back to the other author's if this one hasn't written about the team
+    const text = (author === 'andy' ? andyDescription ?? loganDescription : loganDescription ?? andyDescription) ?? description;
     return (
         <Card>
             <CardHeader>

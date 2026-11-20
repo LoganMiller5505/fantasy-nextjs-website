@@ -21,11 +21,27 @@ normalized `league` schema, with as little change as possible.
 | `db/01_seed.sql` | Once per season, when divisions are set | Divisions: the one fact the sheet doesn't hold. |
 | `db/02_populate.sql` | Once, and again whenever the sync logic changes | Installs the sync as `league.sync()` and runs it. The sheet loader then calls it after every upload. |
 | `db/03_content.sql` | Once | Creates the separate `content` schema for things written on the site itself (Andy Schefter tweets and their images), and moves the old text-only tweets in. |
+| `db/04_rankings_gallery.sql` | Once | Adds power ranking write-ups and the slander gallery to `content`, and moves the old hard-coded write-ups in. The gallery's existing media is moved in afterwards by `scripts/import-gallery.mts`. |
 
 **`content` is not `league`.** `league` holds facts copied from the sheet and is rebuilt by the sync;
 `content` holds what people write on the site, which exists nowhere else. The sync never touches it,
-and it's the place for future site-written content (power ranking blurbs, recaps). Its tweets are
-posted from `/andy-schefter` by anyone with `TWEET_PASSWORD`.
+and it's the place for future site-written content (recaps). Everything in it is written on the site
+by anyone with `EDITOR_PASSWORD` (log in at `/editor`):
+
+- **Andy Schefter tweets** (`tweet`, `tweet_image`), posted from `/andy-schefter`.
+- **Power ranking write-ups** (`power_ranking_writeup`), written at `/power-rankings/edit`. Only the
+  words are stored: each week's ranks are the consensus of the sheet's ballots in
+  `league.power_ranking`, and records come from `league.game`. A week shows on the home page once it
+  has at least one write-up.
+- **The slander gallery** (`gallery_item`, `gallery_image`, `gallery_person`), added to from
+  `/slander-gallery`. Images and video posters are stored here in two sizes (full and an 800 px
+  thumbnail for the grid). Videos are too big to pass through a Vercel function, so the browser
+  uploads them straight to Vercel Blob (`BLOB_READ_WRITE_TOKEN`) and `gallery_item.video_url` points
+  there. Preview deployments share that Blob store with production but have their own copy of the
+  database, so a preview never deletes a video from Blob.
+
+Write-ups and gallery items point at `league.manager`, `league.team` and `league.week`, which the sync
+never deletes.
 
 **Status.** All three files have been run end to end on synthetic data in a local Postgres 16,
 including the failure cases the checks are meant to catch, with the loader's role calling the sync

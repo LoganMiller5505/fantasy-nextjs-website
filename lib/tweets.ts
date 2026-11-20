@@ -56,11 +56,3 @@ export function fillEngagement(given: Counts): Required<Counts> {
 
   return { replies: fill("replies"), retweets: fill("retweets"), likes: fill("likes"), views: fill("views") }
 }
-
-// en-CA formats dates as YYYY-MM-DD
-const central = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" })
-
-// Today on league time (Auburn), as "YYYY-MM-DD"
-export function todayCentral() {
-  return central.format(new Date())
-}
